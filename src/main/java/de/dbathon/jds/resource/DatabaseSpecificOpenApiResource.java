@@ -1,6 +1,6 @@
 package de.dbathon.jds.resource;
 
-import static de.dbathon.jds.util.JsonUtil.toJsonBytesPretty;
+import static de.dbathon.jds.util.JsonUtil.toJsonStreamingOutputPretty;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
@@ -10,6 +10,7 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.StreamingOutput;
 import javax.ws.rs.core.UriInfo;
 
 import de.dbathon.jds.service.DatabaseService;
@@ -24,9 +25,9 @@ public class DatabaseSpecificOpenApiResource {
   private OpenApiService openApiService;
 
   @GET
-  public byte[] getOpenApiSpecification(@PathParam("databaseName") final String databaseName,
+  public StreamingOutput getOpenApiSpecification(@PathParam("databaseName") final String databaseName,
       @Context final UriInfo uriInfo) {
-    return toJsonBytesPretty(openApiService.buildDatabaseSpecificSpecification(uriInfo, databaseName));
+    return toJsonStreamingOutputPretty(openApiService.buildDatabaseSpecificSpecification(uriInfo, databaseName));
   }
 
 }

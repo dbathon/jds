@@ -1,6 +1,6 @@
 package de.dbathon.jds.rest;
 
-import static de.dbathon.jds.util.JsonUtil.toJsonBytesPretty;
+import static de.dbathon.jds.util.JsonUtil.toJsonStreamingOutputPretty;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.ws.rs.core.HttpHeaders;
@@ -15,7 +15,7 @@ import de.dbathon.jds.util.JsonMap;
 public class RestHelper {
 
   public Response buildJsonResponse(final ResponseBuilder builder, final Object json) {
-    builder.entity(toJsonBytesPretty(json));
+    builder.entity(toJsonStreamingOutputPretty(json));
     builder.header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON);
     return builder.build();
   }

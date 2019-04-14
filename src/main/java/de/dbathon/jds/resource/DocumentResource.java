@@ -1,7 +1,7 @@
 package de.dbathon.jds.resource;
 
 import static de.dbathon.jds.util.JsonUtil.readObjectFromJsonBytes;
-import static de.dbathon.jds.util.JsonUtil.toJsonBytesPretty;
+import static de.dbathon.jds.util.JsonUtil.toJsonStreamingOutputPretty;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
@@ -17,6 +17,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.ResponseBuilder;
+import javax.ws.rs.core.StreamingOutput;
 import javax.ws.rs.core.UriInfo;
 
 import de.dbathon.jds.rest.ApiException;
@@ -38,9 +39,9 @@ public class DocumentResource {
   private DocumentService documentService;
 
   @GET
-  public byte[] get(@PathParam("databaseName") final String databaseName,
+  public StreamingOutput get(@PathParam("databaseName") final String databaseName,
       @PathParam("documentId") final String documentId) {
-    return toJsonBytesPretty(documentService.getDocument(databaseName, documentId));
+    return toJsonStreamingOutputPretty(documentService.getDocument(databaseName, documentId));
   }
 
   @PUT
@@ -64,13 +65,13 @@ public class DocumentResource {
   }
 
   @DELETE
-  public byte[] delete(@PathParam("databaseName") final String databaseName,
+  public StreamingOutput delete(@PathParam("databaseName") final String databaseName,
       @PathParam("documentId") final String documentId, @QueryParam("version") final String version) {
     if (version == null) {
       throw new ApiException("version parameter is missing");
     }
     documentService.deleteDocument(databaseName, documentId, version);
-    return toJsonBytesPretty(new JsonMap());
+    return toJsonStreamingOutputPretty(new JsonMap());
   }
 
   // TODO PATCH

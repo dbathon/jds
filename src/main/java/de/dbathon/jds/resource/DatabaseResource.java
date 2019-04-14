@@ -1,7 +1,7 @@
 package de.dbathon.jds.resource;
 
 import static de.dbathon.jds.util.JsonUtil.readObjectFromJsonBytes;
-import static de.dbathon.jds.util.JsonUtil.toJsonBytesPretty;
+import static de.dbathon.jds.util.JsonUtil.toJsonStreamingOutputPretty;
 import static java.util.Objects.requireNonNull;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -18,6 +18,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.core.StreamingOutput;
 import javax.ws.rs.core.UriInfo;
 
 import de.dbathon.jds.rest.ApiException;
@@ -38,8 +39,8 @@ public class DatabaseResource {
   private RestHelper restHelper;
 
   @GET
-  public byte[] get(@PathParam("databaseName") final String databaseName) {
-    return toJsonBytesPretty(databaseService.getDatabase(databaseName));
+  public StreamingOutput get(@PathParam("databaseName") final String databaseName) {
+    return toJsonStreamingOutputPretty(databaseService.getDatabase(databaseName));
   }
 
   @PUT
@@ -69,13 +70,13 @@ public class DatabaseResource {
   }
 
   @DELETE
-  public byte[] delete(@PathParam("databaseName") final String databaseName,
+  public StreamingOutput delete(@PathParam("databaseName") final String databaseName,
       @QueryParam("version") final String version) {
     if (version == null) {
       throw new ApiException("version parameter is missing");
     }
     databaseService.deleteDatabase(databaseName, version);
-    return toJsonBytesPretty(new JsonMap());
+    return toJsonStreamingOutputPretty(new JsonMap());
   }
 
   // TODO: _query, _count
