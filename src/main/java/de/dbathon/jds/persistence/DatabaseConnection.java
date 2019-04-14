@@ -122,7 +122,7 @@ public class DatabaseConnection {
 
   public <T> List<T> query(final String sql, final Class<T> rowType, final Class<?>[] columnTypes,
       final Object... parameters) {
-    return withConnection((final Connection connection) -> {
+    return withConnection(connection -> {
       try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
         bindParameters(preparedStatement, parameters);
         return executeQuery(preparedStatement, rowType, columnTypes);
@@ -153,7 +153,7 @@ public class DatabaseConnection {
   }
 
   public int executeUpdate(final String sql, final Object... parameters) {
-    return withConnection((final Connection connection) -> {
+    return withConnection(connection -> {
       try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
         bindParameters(preparedStatement, parameters);
         return preparedStatement.executeUpdate();
