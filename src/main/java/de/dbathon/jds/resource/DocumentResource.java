@@ -6,7 +6,6 @@ import static de.dbathon.jds.util.JsonUtil.toBytesPretty;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.json.JsonObject;
-import javax.transaction.Transactional;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -31,7 +30,6 @@ import de.dbathon.jds.service.DocumentService;
 @ApplicationScoped
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
-@Transactional
 public class DocumentResource {
 
   @Inject
