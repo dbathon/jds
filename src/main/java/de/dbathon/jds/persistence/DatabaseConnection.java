@@ -1,123 +1,63 @@
 package de.dbathon.jds.persistence;
 
-import java.io.Serializable;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 
-import javax.annotation.PreDestroy;
 import javax.annotation.Resource;
+import javax.enterprise.context.ApplicationScoped;
 import javax.sql.DataSource;
-import javax.transaction.TransactionScoped;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Provides access to the {@link Connection database connection} for the current transaction. Also
  * implements various useful methods using the connection.
  * <p>
- * No method will throw {@link SQLException}, instead the exceptions will either be wrapped in
- * {@link RuntimeSqlException} or will be logged.
- * <p>
- * Note: this class implements {@link Serializable} because of {@link TransactionScoped}...
+ * No method will throw {@link SQLException}, instead the exceptions will be wrapped in
+ * {@link RuntimeSqlException}.
  */
-@TransactionScoped
-public class DatabaseConnection implements Serializable {
-
-  private static final Logger log = LoggerFactory.getLogger(DatabaseConnection.class);
+@ApplicationScoped
+public class DatabaseConnection {
 
   @Resource(lookup = "java:/datasources/jds")
   private DataSource dataSource;
 
-  private Connection connection;
-
-  private final Map<String, PreparedStatement> preparedStatements = new HashMap<>();
-
-  /**
-   * Should only be used if really necessary...
-   */
-  public Connection getConnection() {
-    if (connection == null) {
-      try {
-        connection = dataSource.getConnection();
-      }
-      catch (final SQLException e) {
-        throw new RuntimeSqlException(e);
-      }
-    }
-    return connection;
+  public interface FunctionWithConnection<T> {
+    T apply(Connection connection) throws SQLException;
   }
 
-  @PreDestroy
-  private void cleanup() {
-    if (connection != null) {
-      for (final Entry<String, PreparedStatement> entry : preparedStatements.entrySet()) {
-        try {
-          entry.getValue().close();
-        }
-        catch (final SQLException e) {
-          log.error("prepared statement close failed for: " + entry.getKey(), e);
-        }
-      }
-      preparedStatements.clear();
-
-      try {
-        connection.close();
-      }
-      catch (final SQLException e) {
-        log.error("connection close failed", e);
-      }
-      connection = null;
-    }
-  }
-
-  private PreparedStatement getPreparedStatement(final String sql) {
-    try {
-      PreparedStatement result = preparedStatements.get(sql);
-      if (result == null) {
-        result = getConnection().prepareStatement(sql);
-        preparedStatements.put(sql, result);
-      }
-      result.clearParameters();
-      return result;
+  public <T> T withConnection(final FunctionWithConnection<T> function) {
+    try (Connection connection = dataSource.getConnection()) {
+      return function.apply(connection);
     }
     catch (final SQLException e) {
       throw new RuntimeSqlException(e);
     }
   }
 
-  private void bindParameters(final PreparedStatement preparedStatement, final Object... parameters) {
+  private void bindParameters(final PreparedStatement preparedStatement, final Object... parameters)
+      throws SQLException {
     if (parameters != null) {
-      try {
-        for (int i = 0; i < parameters.length; ++i) {
-          final Object parameter = parameters[i];
-          if (parameter instanceof String) {
-            preparedStatement.setString(i + 1, (String) parameter);
-          }
-          else if (parameter instanceof Long) {
-            preparedStatement.setLong(i + 1, (Long) parameter);
-          }
-          else if (parameter instanceof Integer) {
-            preparedStatement.setInt(i + 1, (Integer) parameter);
-          }
-          else if (parameter instanceof Boolean) {
-            preparedStatement.setBoolean(i + 1, (Boolean) parameter);
-          }
-          else {
-            throw new IllegalArgumentException("unsupported parameter value: " + parameter);
-          }
+      for (int i = 0; i < parameters.length; ++i) {
+        final Object parameter = parameters[i];
+        if (parameter instanceof String) {
+          preparedStatement.setString(i + 1, (String) parameter);
         }
-      }
-      catch (final SQLException e) {
-        throw new RuntimeSqlException(e);
+        else if (parameter instanceof Long) {
+          preparedStatement.setLong(i + 1, (Long) parameter);
+        }
+        else if (parameter instanceof Integer) {
+          preparedStatement.setInt(i + 1, (Integer) parameter);
+        }
+        else if (parameter instanceof Boolean) {
+          preparedStatement.setBoolean(i + 1, (Boolean) parameter);
+        }
+        else {
+          throw new IllegalArgumentException("unsupported parameter value: " + parameter);
+        }
       }
     }
   }
@@ -145,7 +85,7 @@ public class DatabaseConnection implements Serializable {
   }
 
   private <T> List<T> executeQuery(final PreparedStatement preparedStatement, final Class<T> rowType,
-      final Class<?>[] columnTypes) {
+      final Class<?>[] columnTypes) throws SQLException {
     final List<T> result = new ArrayList<>();
     try (ResultSet resultSet = preparedStatement.executeQuery()) {
       ResultSetMetaData metaData = null;
@@ -177,17 +117,17 @@ public class DatabaseConnection implements Serializable {
         }
       }
     }
-    catch (final SQLException e) {
-      throw new RuntimeSqlException(e);
-    }
     return result;
   }
 
   public <T> List<T> query(final String sql, final Class<T> rowType, final Class<?>[] columnTypes,
       final Object... parameters) {
-    final PreparedStatement preparedStatement = getPreparedStatement(sql);
-    bindParameters(preparedStatement, parameters);
-    return executeQuery(preparedStatement, rowType, columnTypes);
+    return withConnection((final Connection connection) -> {
+      try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+        bindParameters(preparedStatement, parameters);
+        return executeQuery(preparedStatement, rowType, columnTypes);
+      }
+    });
   }
 
   public <T> List<T> query(final String sql, final Class<T> rowType, final Object... parameters) {
@@ -213,14 +153,12 @@ public class DatabaseConnection implements Serializable {
   }
 
   public int executeUpdate(final String sql, final Object... parameters) {
-    final PreparedStatement preparedStatement = getPreparedStatement(sql);
-    bindParameters(preparedStatement, parameters);
-    try {
-      return preparedStatement.executeUpdate();
-    }
-    catch (final SQLException e) {
-      throw new RuntimeSqlException(e);
-    }
+    return withConnection((final Connection connection) -> {
+      try (PreparedStatement preparedStatement = connection.prepareStatement(sql)) {
+        bindParameters(preparedStatement, parameters);
+        return preparedStatement.executeUpdate();
+      }
+    });
   }
 
 }
