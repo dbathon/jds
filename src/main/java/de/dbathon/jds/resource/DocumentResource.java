@@ -1,11 +1,10 @@
 package de.dbathon.jds.resource;
 
-import static de.dbathon.jds.util.JsonUtil.object;
-import static de.dbathon.jds.util.JsonUtil.toBytesPretty;
+import static de.dbathon.jds.util.JsonUtil.readObjectFromJsonBytes;
+import static de.dbathon.jds.util.JsonUtil.toJsonBytesPretty;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.json.JsonObject;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -24,6 +23,7 @@ import de.dbathon.jds.rest.ApiException;
 import de.dbathon.jds.rest.RestHelper;
 import de.dbathon.jds.service.DatabaseService;
 import de.dbathon.jds.service.DocumentService;
+import de.dbathon.jds.util.JsonMap;
 
 @Path("{databaseName:" + DatabaseService.NAME_PATTERN_STRING + "}/{documentId:" + DocumentService.ID_PATTERN_STRING
     + "}")
@@ -40,12 +40,13 @@ public class DocumentResource {
   @GET
   public byte[] get(@PathParam("databaseName") final String databaseName,
       @PathParam("documentId") final String documentId) {
-    return toBytesPretty(documentService.getDocument(databaseName, documentId));
+    return toJsonBytesPretty(documentService.getDocument(databaseName, documentId));
   }
 
   @PUT
   public Response put(@PathParam("databaseName") final String databaseName,
-      @PathParam("documentId") final String documentId, final JsonObject json, @Context final UriInfo uriInfo) {
+      @PathParam("documentId") final String documentId, final byte[] jsonBytes, @Context final UriInfo uriInfo) {
+    final JsonMap json = readObjectFromJsonBytes(jsonBytes);
     final String newVersion;
     final ResponseBuilder response;
     if (!json.containsKey("version")) {
@@ -59,7 +60,7 @@ public class DocumentResource {
       response = Response.ok();
     }
     // do not return the full document, just the id and version
-    return restHelper.buildJsonResponse(response, object().add("id", documentId).add("version", newVersion).build());
+    return restHelper.buildJsonResponse(response, new JsonMap().add("id", documentId).add("version", newVersion));
   }
 
   @DELETE
@@ -69,7 +70,7 @@ public class DocumentResource {
       throw new ApiException("version parameter is missing");
     }
     documentService.deleteDocument(databaseName, documentId, version);
-    return toBytesPretty(object());
+    return toJsonBytesPretty(new JsonMap());
   }
 
   // TODO PATCH

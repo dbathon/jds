@@ -1,12 +1,11 @@
 package de.dbathon.jds.resource;
 
-import static de.dbathon.jds.util.JsonUtil.object;
-import static de.dbathon.jds.util.JsonUtil.toBytesPretty;
+import static de.dbathon.jds.util.JsonUtil.readObjectFromJsonBytes;
+import static de.dbathon.jds.util.JsonUtil.toJsonBytesPretty;
+import static java.util.Objects.requireNonNull;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.json.JsonObject;
-import javax.json.JsonString;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -24,6 +23,7 @@ import javax.ws.rs.core.UriInfo;
 import de.dbathon.jds.rest.ApiException;
 import de.dbathon.jds.rest.RestHelper;
 import de.dbathon.jds.service.DatabaseService;
+import de.dbathon.jds.util.JsonMap;
 
 @Path("{databaseName:" + DatabaseService.NAME_PATTERN_STRING + "}")
 @ApplicationScoped
@@ -39,17 +39,17 @@ public class DatabaseResource {
 
   @GET
   public byte[] get(@PathParam("databaseName") final String databaseName) {
-    return toBytesPretty(databaseService.getDatabase(databaseName));
+    return toJsonBytesPretty(databaseService.getDatabase(databaseName));
   }
 
   @PUT
-  public Response put(@PathParam("databaseName") final String databaseName, final JsonObject json,
+  public Response put(@PathParam("databaseName") final String databaseName, final byte[] jsonBytes,
       @Context final UriInfo uriInfo) {
+    final JsonMap json = readObjectFromJsonBytes(jsonBytes);
     final String name, version;
     try {
-      name = json.getString("name");
-      final JsonString versionValue = json.getJsonString("version");
-      version = versionValue == null ? null : versionValue.getString();
+      name = requireNonNull((String) json.get("name"));
+      version = (String) json.get("version");
     }
     catch (final RuntimeException e) {
       throw new ApiException("invalid name or version");
@@ -75,7 +75,7 @@ public class DatabaseResource {
       throw new ApiException("version parameter is missing");
     }
     databaseService.deleteDatabase(databaseName, version);
-    return toBytesPretty(object());
+    return toJsonBytesPretty(new JsonMap());
   }
 
   // TODO: _query, _count

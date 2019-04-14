@@ -1,6 +1,6 @@
 package de.dbathon.jds.resource;
 
-import static de.dbathon.jds.util.JsonUtil.toBytesPretty;
+import static de.dbathon.jds.util.JsonUtil.toJsonBytesPretty;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
@@ -23,7 +23,7 @@ public class OpenApiResource {
 
   @GET
   public byte[] getOpenApiSpecification(@Context final UriInfo uriInfo) {
-    return toBytesPretty(openApiService.buildSpecification(uriInfo));
+    return toJsonBytesPretty(openApiService.buildSpecification(uriInfo));
   }
 
 }

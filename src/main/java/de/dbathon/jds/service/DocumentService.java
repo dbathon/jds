@@ -1,20 +1,14 @@
 package de.dbathon.jds.service;
 
-import static de.dbathon.jds.util.JsonUtil.object;
 import static java.util.Objects.requireNonNull;
 
 import java.io.Serializable;
-import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.Map;
 import java.util.regex.Pattern;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.json.JsonObject;
-import javax.json.JsonObjectBuilder;
-import javax.json.JsonString;
-import javax.json.JsonValue;
 import javax.json.stream.JsonGenerator;
 import javax.transaction.Transactional;
 import javax.ws.rs.core.Response.Status;
@@ -23,6 +17,7 @@ import de.dbathon.jds.persistence.DatabaseConnection;
 import de.dbathon.jds.persistence.RuntimeSqlException;
 import de.dbathon.jds.rest.ApiException;
 import de.dbathon.jds.service.DatabaseService.DatabaseInfo;
+import de.dbathon.jds.util.JsonMap;
 import de.dbathon.jds.util.JsonUtil;
 
 @ApplicationScoped
@@ -73,14 +68,14 @@ public class DocumentService {
     }
   }
 
-  private JsonObject buildJsonObject(final String id, final Long version, final String dataJson) {
-    final JsonObjectBuilder result = object().add("id", id).add("version", DatabaseService.toVersionString(version));
-    final JsonObject data = JsonUtil.PROVIDER.createReader(new StringReader(dataJson)).readObject();
-    result.addAll(JsonUtil.PROVIDER.createObjectBuilder(data));
-    return result.build();
+  private JsonMap buildJsonObject(final String id, final Long version, final String dataJson) {
+    final JsonMap result = new JsonMap().add("id", id).add("version", DatabaseService.toVersionString(version));
+    final JsonMap data = (JsonMap) JsonUtil.readJsonString(dataJson);
+    result.putAll(data);
+    return result;
   }
 
-  public JsonObject getDocument(final String databaseName, final String documentId) {
+  public JsonMap getDocument(final String databaseName, final String documentId) {
     // no locking and only one select
     final Object[] row = databaseConnection.queryNoOrOneResult(
         "select d.version, d.data from jds_document d "
@@ -105,21 +100,21 @@ public class DocumentService {
     return info;
   }
 
-  private String toDataJsonString(final JsonObject json, final String expectedId, final String expectedVersion) {
+  private String toDataJsonString(final JsonMap json, final String expectedId, final String expectedVersion) {
     final StringWriter stringWriter = new StringWriter();
     final JsonGenerator generator = JsonUtil.PROVIDER.createGenerator(stringWriter);
     boolean versionSeen = false;
 
     generator.writeStartObject();
-    for (final Map.Entry<String, JsonValue> entry : json.entrySet()) {
+    for (final Map.Entry<String, ?> entry : json.entrySet()) {
       final String key = entry.getKey();
-      final JsonValue value = entry.getValue();
+      final Object value = entry.getValue();
       if ("id".equals(key)) {
         // id is optional in the json, but if given it must match
-        if (!(value instanceof JsonString)) {
+        if (!(value instanceof String)) {
           throw new ApiException("invalid id");
         }
-        else if (!expectedId.equals(((JsonString) value).getString())) {
+        else if (!expectedId.equals(value)) {
           throw new ApiException("id does not match");
         }
       }
@@ -129,16 +124,17 @@ public class DocumentService {
           // should not happen
           throw new IllegalArgumentException("version in json, but expectedVersion is null");
         }
-        else if (!(value instanceof JsonString)) {
+        else if (!(value instanceof String)) {
           throw new ApiException("invalid version");
         }
-        else if (expectedVersion != null && !expectedVersion.equals(((JsonString) value).getString())) {
+        else if (expectedVersion != null && !expectedVersion.equals(value)) {
           throw versionDoesNotMatchException();
         }
       }
       else {
         // just write everything else
-        generator.write(key, value);
+        generator.writeKey(key);
+        JsonUtil.writeToGenerator(value, generator);
       }
     }
     generator.writeEnd();
@@ -151,7 +147,7 @@ public class DocumentService {
     return stringWriter.toString();
   }
 
-  public String createDocument(final String databaseName, final String documentId, final JsonObject json) {
+  public String createDocument(final String databaseName, final String documentId, final JsonMap json) {
     validateId(documentId);
     final DatabaseInfo databaseInfo = databaseCache.getDatabaseInfoAndLock(databaseName);
     final String dataJson = toDataJsonString(json, documentId, null);
@@ -175,7 +171,7 @@ public class DocumentService {
     }
   }
 
-  public String updateDocument(final String databaseName, final String documentId, final JsonObject json) {
+  public String updateDocument(final String databaseName, final String documentId, final JsonMap json) {
     validateId(documentId);
     final DocumentInfo info = getDocumentInfoAndLock(databaseName, documentId);
     final String dataJson = toDataJsonString(json, documentId, DatabaseService.toVersionString(info.version));

@@ -1,6 +1,5 @@
 package de.dbathon.jds.service;
 
-import static de.dbathon.jds.util.JsonUtil.object;
 import static java.util.Objects.requireNonNull;
 
 import java.io.Serializable;
@@ -9,13 +8,13 @@ import java.util.regex.Pattern;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.json.JsonObject;
 import javax.transaction.Transactional;
 import javax.ws.rs.core.Response.Status;
 
 import de.dbathon.jds.persistence.DatabaseConnection;
 import de.dbathon.jds.persistence.RuntimeSqlException;
 import de.dbathon.jds.rest.ApiException;
+import de.dbathon.jds.util.JsonMap;
 
 @ApplicationScoped
 @Transactional
@@ -62,11 +61,11 @@ public class DatabaseService {
     return String.valueOf(version);
   }
 
-  private JsonObject databaseJson(final String name, final String version) {
-    return object().add("name", name).add("version", version).build();
+  private JsonMap databaseJson(final String name, final String version) {
+    return new JsonMap().add("name", name).add("version", version);
   }
 
-  public JsonObject getDatabase(final String databaseName) {
+  public JsonMap getDatabase(final String databaseName) {
     final Long version = databaseConnection.queryNoOrOneResult("select version from jds_database where name = ?",
         Long.class, databaseName);
     if (version == null) {
@@ -81,7 +80,7 @@ public class DatabaseService {
     }
   }
 
-  public JsonObject createDatabase(final String databaseName) {
+  public JsonMap createDatabase(final String databaseName) {
     validateName(databaseName);
     // try up to 100 times with random ids...
     final Random random = new Random();
@@ -124,8 +123,7 @@ public class DatabaseService {
     return databaseInfo.version + 1;
   }
 
-  public JsonObject renameDatabase(final String oldDatabaseName, final String oldVersion,
-      final String newDatabaseName) {
+  public JsonMap renameDatabase(final String oldDatabaseName, final String oldVersion, final String newDatabaseName) {
     validateName(newDatabaseName);
     final DatabaseInfo info = getDatabaseInfoAndLockAndCheckVersion(oldDatabaseName, oldVersion);
     if (oldDatabaseName.equals(newDatabaseName)) {

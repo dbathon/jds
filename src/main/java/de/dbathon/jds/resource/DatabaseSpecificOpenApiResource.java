@@ -1,6 +1,6 @@
 package de.dbathon.jds.resource;
 
-import static de.dbathon.jds.util.JsonUtil.toBytesPretty;
+import static de.dbathon.jds.util.JsonUtil.toJsonBytesPretty;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
@@ -26,7 +26,7 @@ public class DatabaseSpecificOpenApiResource {
   @GET
   public byte[] getOpenApiSpecification(@PathParam("databaseName") final String databaseName,
       @Context final UriInfo uriInfo) {
-    return toBytesPretty(openApiService.buildDatabaseSpecificSpecification(uriInfo, databaseName));
+    return toJsonBytesPretty(openApiService.buildDatabaseSpecificSpecification(uriInfo, databaseName));
   }
 
 }
