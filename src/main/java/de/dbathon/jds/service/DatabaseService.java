@@ -132,8 +132,9 @@ public class DatabaseService {
     }
     final Long newVersion = getNextVersion(info);
     try {
-      final int updateCount = databaseConnection.executeUpdate(
-          "update jds_database set name = ?, version = ? where id = ?", newDatabaseName, newVersion, info.id);
+      final int updateCount =
+          databaseConnection.executeUpdate("update jds_database set name = ?, version = ? where id = ? and version = ?",
+              newDatabaseName, newVersion, info.id, info.version);
       if (updateCount != 1) {
         // the update must work, since we locked above
         throw new IllegalStateException("rename failed unexpectedly: " + updateCount);

@@ -53,9 +53,9 @@ public class DocumentService {
 
   public DocumentInfo getDocumentInfoAndLock(final String databaseName, final String documentId) {
     final DatabaseInfo databaseInfo = databaseCache.getDatabaseInfoAndLock(databaseName);
+    // no need to lock the specific document, since we are locking the whole database
     final Long version = databaseConnection.queryNoOrOneResult(
-        "select version from jds_document where database_id = ? and id = ? for update", Long.class, databaseInfo.id,
-        documentId);
+        "select version from jds_document where database_id = ? and id = ?", Long.class, databaseInfo.id, documentId);
     if (version == null) {
       throw notFoundException();
     }
