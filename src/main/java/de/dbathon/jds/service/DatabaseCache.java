@@ -45,6 +45,7 @@ public class DatabaseCache implements Serializable {
     Long result = idToIncrementedVersion.get(databaseInfo.id);
     if (result == null) {
       result = databaseService.incrementVersion(databaseInfo);
+      idToIncrementedVersion.put(databaseInfo.id, result);
     }
     return result;
   }
