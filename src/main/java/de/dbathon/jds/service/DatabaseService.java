@@ -44,6 +44,15 @@ public class DatabaseService {
     return new ApiException("database not found", Status.NOT_FOUND);
   }
 
+  public Integer getDatabaseId(final String databaseName) {
+    final Integer id = databaseConnection.queryNoOrOneResult("select id from jds_database where name = ?",
+        Integer.class, databaseName);
+    if (id == null) {
+      throw notFoundException();
+    }
+    return id;
+  }
+
   public DatabaseInfo getDatabaseInfoAndLock(final String databaseName) {
     final Object[] row = databaseConnection.queryNoOrOneResult(
         "select id, version from jds_database where name = ? for update", Object[].class, INT_LONG_TYPES, databaseName);

@@ -36,7 +36,7 @@ public class OpenApiService {
     return tags;
   }
 
-  private void addParameters(final JsonMap operation, final String... parameterNames) {
+  private JsonMap addParameters(final JsonMap operation, final String... parameterNames) {
     if (parameterNames.length > 0) {
       JsonList parameters = (JsonList) operation.get("parameters");
       if (parameters == null) {
@@ -44,15 +44,24 @@ public class OpenApiService {
         operation.add("parameters", parameters);
       }
       for (final String parameterName : parameterNames) {
+        String name = parameterName;
         final boolean queryParam = parameterName.startsWith("&");
+        if (queryParam) {
+          name = name.substring(1);
+        }
+        final boolean optional = parameterName.endsWith("?");
+        if (optional) {
+          name = name.substring(0, name.length() - 1);
+        }
         final JsonMap parameter = new JsonMap();
-        parameter.add("name", parameterName.substring(queryParam ? 1 : 0));
+        parameter.add("name", name);
         parameter.add("in", queryParam ? "query" : "path");
-        parameter.add("required", true);
+        parameter.add("required", !optional);
         parameter.add("schema", new JsonMap().add("type", "string"));
         parameters.add(parameter);
       }
     }
+    return operation;
   }
 
   private JsonMap basicOperation(final String summary, final String tag, final String... parameterNames) {
@@ -106,6 +115,24 @@ public class OpenApiService {
     return path;
   }
 
+  private JsonMap queryOperation(final String databaseName, final String summary) {
+    return databaseName == null ? basicOperation(summary, "document", "databaseName")
+        : basicOperation(summary, "document");
+  }
+
+  private JsonMap buildQueryPath(final String databaseName) {
+    final JsonMap path = new JsonMap();
+    path.add("get", addParameters(addJsonResponse(queryOperation(databaseName, "query documents")), "&filters?",
+        "&limit?", "&offset?"));
+    return path;
+  }
+
+  private JsonMap buildCountPath(final String databaseName) {
+    final JsonMap path = new JsonMap();
+    path.add("get", addParameters(addJsonResponse(queryOperation(databaseName, "count documents")), "&filters?"));
+    return path;
+  }
+
   private JsonMap buildOpenApiPath(final String... parameterNames) {
     final JsonMap path = new JsonMap();
     path.add("get", addJsonResponse(basicOperation("get the OpenApi specification", "api", parameterNames)));
@@ -114,14 +141,16 @@ public class OpenApiService {
 
   private JsonMap buildPaths(final String databaseName) {
     final JsonMap paths = new JsonMap();
+    final String databasePath = databaseName == null ? "/{databaseName}" : "/" + databaseName;
     if (databaseName == null) {
-      paths.add("/{databaseName}", buildDatabasePath());
-      paths.add("/{databaseName}/{documentId}", buildDocumentPath(null));
-      paths.add("/_openApi.json", buildOpenApiPath());
-      paths.add("/{databaseName}/_openApi.json", buildOpenApiPath("databaseName"));
+      paths.add(databasePath, buildDatabasePath());
     }
-    else {
-      paths.add("/" + databaseName + "/{documentId}", buildDocumentPath(databaseName));
+    paths.add(databasePath + "/{documentId}", buildDocumentPath(databaseName));
+    paths.add(databasePath + "/_query", buildQueryPath(databaseName));
+    paths.add(databasePath + "/_count", buildCountPath(databaseName));
+    if (databaseName == null) {
+      paths.add("/_openApi.json", buildOpenApiPath());
+      paths.add(databasePath + "/_openApi.json", buildOpenApiPath("databaseName"));
     }
     return paths;
   }

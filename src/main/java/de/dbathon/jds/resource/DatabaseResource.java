@@ -79,6 +79,4 @@ public class DatabaseResource {
     return toJsonStreamingOutputPretty(new JsonMap());
   }
 
-  // TODO: _query, _count
-
 }

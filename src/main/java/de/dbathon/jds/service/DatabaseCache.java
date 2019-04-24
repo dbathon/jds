@@ -21,7 +21,16 @@ public class DatabaseCache implements Serializable {
   @Inject
   private DatabaseService databaseService;
 
+  /**
+   * Every database in this map has been locked in the current transaction.
+   */
   private final Map<String, DatabaseInfo> nameToInfo = new HashMap<>();
+
+  /**
+   * Entries in here are potentially not locked.
+   */
+  private final Map<String, Integer> nameToId = new HashMap<>();
+
   private final Map<Integer, Long> idToIncrementedVersion = new HashMap<>();
 
   public DatabaseInfo getDatabaseInfoAndLock(final String databaseName) {
@@ -29,6 +38,21 @@ public class DatabaseCache implements Serializable {
     if (result == null) {
       result = databaseService.getDatabaseInfoAndLock(databaseName);
       nameToInfo.put(databaseName, result);
+    }
+    return result;
+  }
+
+  public Integer getDatabaseId(final String databaseName) {
+    // if we locked the database before, then use that
+    final DatabaseInfo databaseInfo = nameToInfo.get(databaseName);
+    if (databaseInfo != null) {
+      return databaseInfo.id;
+    }
+    // otherwise check nameToId
+    Integer result = nameToId.get(databaseName);
+    if (result == null) {
+      result = databaseService.getDatabaseId(databaseName);
+      nameToId.put(databaseName, result);
     }
     return result;
   }
