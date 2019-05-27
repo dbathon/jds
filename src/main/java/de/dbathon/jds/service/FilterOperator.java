@@ -1,6 +1,7 @@
 package de.dbathon.jds.service;
 
 import static de.dbathon.jds.util.JsonUtil.toJsonString;
+import static java.util.Objects.requireNonNull;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -9,6 +10,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import de.dbathon.jds.rest.ApiException;
+import de.dbathon.jds.util.JsonMap;
 import de.dbathon.jds.util.JsonStringNumber;
 
 public abstract class FilterOperator {
@@ -17,7 +19,7 @@ public abstract class FilterOperator {
 
   static {
     final Map<String, FilterOperator> filterOperators = new HashMap<>();
-    filterOperators.put("=", new SimpleOperator("=", false, String.class, JsonStringNumber.class, Boolean.class, null));
+    filterOperators.put("=", new EqualsViaContainsOperator(String.class, JsonStringNumber.class, Boolean.class, null));
     filterOperators.put("!=", new SimpleOperator("=", true, String.class, JsonStringNumber.class, Boolean.class, null));
 
     filterOperators.put("<", new SimpleOperator("<", false, String.class, JsonStringNumber.class));
@@ -100,6 +102,11 @@ public abstract class FilterOperator {
       return result.toString();
     }
 
+    protected void applyNonSpecialKey(final QueryBuilder queryBuilder, final String key, final Object rightHandSide) {
+      addToQueryBuilder(queryBuilder, getJsonPathExpression(key) + " " + operator + " ?::jsonb",
+          toJsonString(rightHandSide));
+    }
+
     @Override
     public void apply(final QueryBuilder queryBuilder, final String key, final Object rightHandSide) {
       if (!isTypeAllowed(rightHandSide)) {
@@ -117,10 +124,58 @@ public abstract class FilterOperator {
         }
       }
       else {
-        addToQueryBuilder(queryBuilder, getJsonPathExpression(key) + " " + operator + " ?::jsonb",
-            toJsonString(rightHandSide));
+        applyNonSpecialKey(queryBuilder, key, rightHandSide);
       }
     }
+
+  }
+
+  private static class EqualsViaContainsOperator extends SimpleOperator {
+
+    public EqualsViaContainsOperator(final Class<?>... allowedTypes) {
+      super("=", false, allowedTypes);
+    }
+
+    private JsonMap buildContainsValue(final String key, final Object rightHandSide) {
+      if (!VALID_KEY_PATTERN.matcher(key).matches()) {
+        throw new ApiException("invalid filter key: " + key);
+      }
+      final JsonMap result = new JsonMap();
+      JsonMap lastMap = result;
+      String lastKey = null;
+
+      final Matcher matcher = NAME_OR_INDEX_PATTERN.matcher(key);
+      while (matcher.find()) {
+        final String nextKey = matcher.group();
+        if (lastKey != null) {
+          final JsonMap newMap = new JsonMap();
+          lastMap.put(lastKey, newMap);
+          lastMap = newMap;
+        }
+        lastKey = nextKey;
+      }
+
+      requireNonNull(lastKey);
+      lastMap.put(lastKey, rightHandSide);
+
+      return result;
+    }
+
+    @Override
+    protected void applyNonSpecialKey(final QueryBuilder queryBuilder, final String key, final Object rightHandSide) {
+      if (key.indexOf('[') >= 0 || rightHandSide == null) {
+        /**
+         * array paths or null right hand side are currently not supported here, just use the
+         * default behavior.
+         */
+        super.applyNonSpecialKey(queryBuilder, key, rightHandSide);
+      }
+      else {
+        // we can use the jsonb_path_ops index to optimize this
+        addToQueryBuilder(queryBuilder, "data @> ?::jsonb", toJsonString(buildContainsValue(key, rightHandSide)));
+      }
+    }
+
   }
 
 }
