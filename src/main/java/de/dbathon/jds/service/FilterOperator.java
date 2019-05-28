@@ -103,6 +103,7 @@ public abstract class FilterOperator {
     }
 
     protected void applyNonSpecialKey(final QueryBuilder queryBuilder, final String key, final Object rightHandSide) {
+      // TODO: value type check for inequality operators?! currently 1 >= "10"
       addToQueryBuilder(queryBuilder, getJsonPathExpression(key) + " " + operator + " ?::jsonb",
           toJsonString(rightHandSide));
     }
