@@ -6,6 +6,8 @@ import static java.util.Objects.requireNonNull;
 import java.io.Serializable;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -33,6 +35,8 @@ public class DocumentService {
 
   public static final String ID_PROPERTY = "id";
   public static final String VERSION_PROPERTY = "version";
+  public static final List<String> SPECIAL_STRING_PROPERTIES =
+      Collections.unmodifiableList(Arrays.asList(ID_PROPERTY, VERSION_PROPERTY));
 
   private static final Class<?>[] LONG_STRING_TYPES = new Class<?>[] { Long.class, String.class };
   private static final Class<?>[] STRING_LONG_STRING_TYPES = new Class<?>[] { String.class, Long.class, String.class };
@@ -227,6 +231,31 @@ public class DocumentService {
     operator.apply(queryBuilder, key, rightHandSide);
   }
 
+  private void applyContainsOperator(final QueryBuilder queryBuilder, final Object value) {
+    if (!(value instanceof JsonMap)) {
+      throw new ApiException("invalid right hand side for _contains: " + toJsonString(value));
+    }
+    // copy the map, because we might modify it below
+    final JsonMap map = new JsonMap((JsonMap) value);
+    queryBuilder.withAnd(() -> {
+      // handle special keys
+      for (final String property : SPECIAL_STRING_PROPERTIES) {
+        if (map.containsKey(property)) {
+          final Object idValue = map.remove(property);
+          if (idValue instanceof String) {
+            applyFilterOperator(queryBuilder, property, "=", idValue);
+          }
+          else {
+            // the value does not match
+            queryBuilder.add("false");
+          }
+        }
+      }
+
+      queryBuilder.add("data @> ?::jsonb", toJsonString(map));
+    });
+  }
+
   private void applyFilters(final QueryBuilder queryBuilder, final Object filters) {
     if (filters instanceof Map<?, ?>) {
       for (final Entry<?, ?> entry : ((Map<?, ?>) filters).entrySet()) {
@@ -245,6 +274,10 @@ public class DocumentService {
             queryBuilder.withOr(() -> {
               applyFilters(queryBuilder, value);
             });
+            break;
+          case "_contains":
+            // special case where the key is the operator
+            applyContainsOperator(queryBuilder, value);
             break;
           default:
             throw new ApiException("unexpected filter key: " + key);

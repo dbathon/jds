@@ -9,6 +9,12 @@ import java.util.Map;
  */
 public class JsonMap extends LinkedHashMap<String, Object> {
 
+  public JsonMap() {}
+
+  public JsonMap(final Map<? extends String, ? extends Object> map) {
+    super(map);
+  }
+
   public JsonMap add(final String key, final Object value) {
     put(key, value);
     return this;
