@@ -1,3 +1,0 @@
-maven.bin=/path/to/bin/mvn
-
-deploy.dir=/path/to/wildfly/standalone/deployments/

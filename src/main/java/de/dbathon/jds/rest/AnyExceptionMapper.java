@@ -23,7 +23,7 @@ public class AnyExceptionMapper implements ExceptionMapper<Throwable> {
   private static final Logger log = LoggerFactory.getLogger(AnyExceptionMapper.class);
 
   @Inject
-  private RestHelper restHelper;
+  RestHelper restHelper;
 
   private List<Throwable> reverseCauseList(Throwable throwable) {
     final List<Throwable> result = new ArrayList<>();

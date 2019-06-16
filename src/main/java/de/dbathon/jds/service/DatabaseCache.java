@@ -4,8 +4,8 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
-import javax.transaction.TransactionScoped;
 import javax.transaction.Transactional;
 import javax.transaction.Transactional.TxType;
 
@@ -14,12 +14,12 @@ import de.dbathon.jds.service.DatabaseService.DatabaseInfo;
 /**
  * Caches infos about databases for the current transaction.
  */
-@TransactionScoped
+@RequestScoped
 @Transactional(TxType.MANDATORY)
 public class DatabaseCache implements Serializable {
 
   @Inject
-  private DatabaseService databaseService;
+  DatabaseService databaseService;
 
   /**
    * Every database in this map has been locked in the current transaction.

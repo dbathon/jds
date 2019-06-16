@@ -24,34 +24,50 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.StreamingOutput;
 import javax.ws.rs.core.UriInfo;
 
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
+
 import de.dbathon.jds.rest.ApiException;
 import de.dbathon.jds.rest.RestHelper;
-import de.dbathon.jds.service.DatabaseService;
 import de.dbathon.jds.service.DocumentService;
 import de.dbathon.jds.util.JsonMap;
 
-@Path("{databaseName:" + DatabaseService.NAME_PATTERN_STRING + "}")
+@Path("{databaseName}")
 @ApplicationScoped
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
+@Tag(name = "document")
 public class DocumentResource {
 
   @Inject
-  private RestHelper restHelper;
+  RestHelper restHelper;
   @Inject
-  private DocumentService documentService;
+  DocumentService documentService;
 
   @GET
-  @Path("{documentId:" + DocumentService.ID_PATTERN_STRING + "}")
+  @Path("{documentId}")
+  @Operation(summary = "get a document")
+  @APIResponse(responseCode = "200", content = @Content(schema = @Schema(ref = "jsonObject")))
   public StreamingOutput get(@PathParam("databaseName") final String databaseName,
       @PathParam("documentId") final String documentId) {
     return toJsonStreamingOutputPretty(documentService.getDocument(databaseName, documentId));
   }
 
   @PUT
-  @Path("{documentId:" + DocumentService.ID_PATTERN_STRING + "}")
+  @Path("{documentId}")
+  @Operation(summary = "create or update a document")
+  @APIResponse(responseCode = "200", content = @Content(schema = @Schema(ref = "jsonObject")))
+  @APIResponse(responseCode = "201", content = @Content(schema = @Schema(ref = "jsonObject")))
   public Response put(@PathParam("databaseName") final String databaseName,
-      @PathParam("documentId") final String documentId, final byte[] jsonBytes, @Context final UriInfo uriInfo) {
+      @PathParam("documentId") final String documentId,
+      @RequestBody(content = @Content(schema = @Schema(ref = "jsonObject"))) final byte[] jsonBytes,
+      @Context final UriInfo uriInfo) {
     final JsonMap json = readObjectFromJsonBytes(jsonBytes);
     final String newVersion;
     final ResponseBuilder response;
@@ -70,7 +86,9 @@ public class DocumentResource {
   }
 
   @DELETE
-  @Path("{documentId:" + DocumentService.ID_PATTERN_STRING + "}")
+  @Path("{documentId}")
+  @Operation(summary = "delete a document")
+  @APIResponse(responseCode = "200", content = @Content(schema = @Schema(ref = "jsonObject")))
   public StreamingOutput delete(@PathParam("databaseName") final String databaseName,
       @PathParam("documentId") final String documentId, @QueryParam("version") final String version) {
     if (version == null) {
@@ -96,9 +114,15 @@ public class DocumentResource {
 
   @GET
   @Path("_query")
-  public Response query(@PathParam("databaseName") final String databaseName,
-      @QueryParam("filters") final String filters, @QueryParam("limit") final String limit,
-      @QueryParam("offset") final String offset) {
+  @Operation(summary = "query documents")
+  @APIResponse(responseCode = "200", content = @Content(schema = @Schema(ref = "jsonObject")))
+  public Response query(
+      @PathParam("databaseName") @Parameter(name = "databaseName", required = true) final String databaseName,
+      @QueryParam("filters") @Parameter(name = "filters", required = false) final String filters,
+      @QueryParam("limit") @Parameter(name = "limit", required = false,
+          schema = @Schema(type = SchemaType.NUMBER)) final String limit,
+      @QueryParam("offset") @Parameter(name = "offset", schema = @Schema(type = SchemaType.NUMBER),
+          required = false) final String offset) {
     final List<JsonMap> documents =
         documentService.queryDocuments(databaseName, filters != null ? readJsonString(filters) : null,
             tryParseInteger(limit, "limit"), tryParseInteger(offset, "offset"));
@@ -107,8 +131,11 @@ public class DocumentResource {
 
   @GET
   @Path("_count")
-  public Response count(@PathParam("databaseName") final String databaseName,
-      @QueryParam("filters") final String filters) {
+  @Operation(summary = "count documents")
+  @APIResponse(responseCode = "200", content = @Content(schema = @Schema(ref = "jsonObject")))
+  public Response count(
+      @PathParam("databaseName") @Parameter(name = "databaseName", required = true) final String databaseName,
+      @QueryParam("filters") @Parameter(name = "filters", required = false) final String filters) {
     final Long count = documentService.countDocuments(databaseName, filters != null ? readJsonString(filters) : null);
     return restHelper.buildResultResponse(Status.OK, count);
   }

@@ -21,30 +21,44 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.StreamingOutput;
 import javax.ws.rs.core.UriInfo;
 
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
+
 import de.dbathon.jds.rest.ApiException;
 import de.dbathon.jds.rest.RestHelper;
 import de.dbathon.jds.service.DatabaseService;
 import de.dbathon.jds.util.JsonMap;
 
-@Path("{databaseName:" + DatabaseService.NAME_PATTERN_STRING + "}")
+@Path("{databaseName}")
 @ApplicationScoped
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
+@Tag(name = "database")
 public class DatabaseResource {
 
   @Inject
-  private DatabaseService databaseService;
+  DatabaseService databaseService;
 
   @Inject
-  private RestHelper restHelper;
+  RestHelper restHelper;
 
   @GET
+  @Operation(summary = "get information about the database")
+  @APIResponse(responseCode = "200", content = @Content(schema = @Schema(ref = "jsonObject")))
   public StreamingOutput get(@PathParam("databaseName") final String databaseName) {
     return toJsonStreamingOutputPretty(databaseService.getDatabase(databaseName));
   }
 
   @PUT
-  public Response put(@PathParam("databaseName") final String databaseName, final byte[] jsonBytes,
+  @Operation(summary = "create or update a database")
+  @APIResponse(responseCode = "200", content = @Content(schema = @Schema(ref = "jsonObject")))
+  @APIResponse(responseCode = "201", content = @Content(schema = @Schema(ref = "jsonObject")))
+  public Response put(@PathParam("databaseName") final String databaseName,
+      @RequestBody(content = @Content(schema = @Schema(ref = "jsonObject"))) final byte[] jsonBytes,
       @Context final UriInfo uriInfo) {
     final JsonMap json = readObjectFromJsonBytes(jsonBytes);
     final String name, version;
@@ -70,6 +84,8 @@ public class DatabaseResource {
   }
 
   @DELETE
+  @Operation(summary = "delete a database")
+  @APIResponse(responseCode = "200", content = @Content(schema = @Schema(ref = "jsonObject")))
   public StreamingOutput delete(@PathParam("databaseName") final String databaseName,
       @QueryParam("version") final String version) {
     if (version == null) {

@@ -30,7 +30,6 @@ import de.dbathon.jds.util.JsonUtil;
 @Transactional
 public class DocumentService {
 
-  public static final String ID_PATTERN_STRING = DatabaseService.NAME_PATTERN_STRING;
   public static final Pattern ID_PATTERN = DatabaseService.NAME_PATTERN;
 
   public static final String ID_PROPERTY = "id";
@@ -42,10 +41,10 @@ public class DocumentService {
   private static final Class<?>[] STRING_LONG_STRING_TYPES = new Class<?>[] { String.class, Long.class, String.class };
 
   @Inject
-  private DatabaseConnection databaseConnection;
+  DatabaseConnection databaseConnection;
 
   @Inject
-  private DatabaseCache databaseCache;
+  DatabaseCache databaseCache;
 
   public static class DocumentInfo implements Serializable {
     public final DatabaseInfo databaseInfo;
@@ -74,9 +73,9 @@ public class DocumentService {
     return new DocumentInfo(databaseInfo, documentId, version);
   }
 
-  private void validateId(final String documentId) {
+  public static void validateId(final String documentId) {
     if (!ID_PATTERN.matcher(documentId).matches()) {
-      throw new ApiException("invalid document id");
+      throw new ApiException("invalid document id: " + documentId);
     }
   }
 

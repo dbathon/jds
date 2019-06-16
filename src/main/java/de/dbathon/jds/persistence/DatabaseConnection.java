@@ -8,8 +8,8 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.annotation.Resource;
 import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Inject;
 import javax.sql.DataSource;
 
 /**
@@ -22,8 +22,8 @@ import javax.sql.DataSource;
 @ApplicationScoped
 public class DatabaseConnection {
 
-  @Resource(lookup = "java:/datasources/jds")
-  private DataSource dataSource;
+  @Inject
+  DataSource dataSource;
 
   public interface FunctionWithConnection<T> {
     T apply(Connection connection) throws SQLException;

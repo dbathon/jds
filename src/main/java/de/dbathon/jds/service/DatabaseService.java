@@ -20,13 +20,12 @@ import de.dbathon.jds.util.JsonMap;
 @Transactional
 public class DatabaseService {
 
-  public static final String NAME_PATTERN_STRING = "[a-zA-Z0-9][a-zA-Z0-9_\\-]{0,199}";
-  public static final Pattern NAME_PATTERN = Pattern.compile(NAME_PATTERN_STRING);
+  public static final Pattern NAME_PATTERN = Pattern.compile("[a-zA-Z0-9][a-zA-Z0-9_\\-]{0,199}");
 
   private static final Class<?>[] INT_LONG_TYPES = new Class<?>[] { Integer.class, Long.class };
 
   @Inject
-  private DatabaseConnection databaseConnection;
+  DatabaseConnection databaseConnection;
 
   public static class DatabaseInfo implements Serializable {
     public final Integer id;
@@ -83,9 +82,9 @@ public class DatabaseService {
     return databaseJson(databaseName, toVersionString(version));
   }
 
-  private void validateName(final String databaseName) {
+  public static void validateName(final String databaseName) {
     if (!NAME_PATTERN.matcher(databaseName).matches()) {
-      throw new ApiException("invalid database name");
+      throw new ApiException("invalid database name: " + databaseName);
     }
   }
 
