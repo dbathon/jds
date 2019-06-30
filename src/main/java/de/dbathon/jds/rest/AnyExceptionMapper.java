@@ -40,8 +40,6 @@ public class AnyExceptionMapper implements ExceptionMapper<Throwable> {
 
   @Override
   public Response toResponse(final Throwable exception) {
-    log.debug("request failed with exception: " + exception.getMessage() + ", " + exception.getClass());
-
     Response response = null;
     // try to find an "expected" exception from the inside out
     for (final Throwable e : reverseCauseList(exception)) {
