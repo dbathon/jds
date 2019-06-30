@@ -8,9 +8,11 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -159,6 +161,97 @@ public class DocumentService {
     return stringWriter.toString();
   }
 
+  private void extractReferencedIdsRecursive(final Object object, final Set<String> result) {
+    if (object instanceof Map<?, ?>) {
+      @SuppressWarnings("unchecked")
+      final Map<String, ?> map = (Map<String, ?>) object;
+      map.entrySet().forEach(entry -> {
+        final String key = entry.getKey();
+        final Object value = entry.getValue();
+
+        if ((key.length() >= 3 && key.endsWith("Id"))
+            || (key.length() >= 4 && (key.endsWith("_id") || key.endsWith("_ID")))) {
+          if (value instanceof String) {
+            result.add((String) value);
+          }
+          else if (value != null) {
+            throw new ApiException("must be a string: " + key);
+          }
+        }
+        else if ((key.length() >= 4 && key.endsWith("Ids"))
+            || (key.length() >= 5 && (key.endsWith("_ids") || key.endsWith("_IDS")))) {
+              if (value instanceof List<?>) {
+                ((List<?>) value).forEach(element -> {
+                  if (element instanceof String) {
+                    result.add((String) element);
+                  }
+                  else {
+                    throw new ApiException("must contain only strings: " + key);
+                  }
+                });
+              }
+              else if (value != null) {
+                throw new ApiException("must be a list of strings: " + key);
+              }
+            }
+        // if the key is "data" then don't search for ids in value
+        else if (!"data".contentEquals(key)) {
+          extractReferencedIdsRecursive(value, result);
+        }
+      });
+    }
+    else if (object instanceof List<?>) {
+      ((List<?>) object).forEach(element -> {
+        extractReferencedIdsRecursive(element, result);
+      });
+    }
+  }
+
+  private void updateReferences(final DatabaseInfo databaseInfo, final String documentId, final JsonMap json,
+      final boolean isNew) {
+    final Set<String> referencedIds = new HashSet<>();
+    extractReferencedIdsRecursive(json, referencedIds);
+
+    final Set<String> existingIds;
+    if (isNew) {
+      existingIds = Collections.emptySet();
+    }
+    else {
+      // query the ids from the database
+      existingIds = new HashSet<>(databaseConnection.query(
+          "select to_document_id from jds_reference where database_id = ? and from_document_id = ?", String.class,
+          databaseInfo.id, documentId));
+    }
+
+    if (!referencedIds.equals(existingIds)) {
+      final Set<String> toAdd = new HashSet<>(referencedIds);
+      toAdd.removeAll(existingIds);
+      final Set<String> toDelete = new HashSet<>(existingIds);
+      toDelete.removeAll(referencedIds);
+
+      // TODO: optimize with batched inserts/deletes
+      toAdd.forEach(id -> {
+        try {
+          databaseConnection.executeUpdate(
+              "insert into jds_reference (database_id, from_document_id, to_document_id) values (?, ?, ?)",
+              databaseInfo.id, documentId, id);
+        }
+        catch (final RuntimeSqlException e) {
+          if (e.isIntegrityContraintViolation()) {
+            // referenced document does not exist
+            throw new ApiException("referenced document does not exist: " + id, e, Status.CONFLICT);
+          }
+          throw e;
+        }
+      });
+      toDelete.forEach(id -> {
+        databaseConnection.executeUpdate(
+            "delete from jds_reference where database_id = ? and from_document_id = ? and to_document_id = ?",
+            databaseInfo.id, documentId, id);
+      });
+    }
+  }
+
   public String createDocument(final String databaseName, final String documentId, final JsonMap json) {
     validateId(documentId);
     final DatabaseInfo databaseInfo = databaseCache.getDatabaseInfoAndLock(databaseName);
@@ -172,7 +265,6 @@ public class DocumentService {
       if (insertCount != 1) {
         throw new IllegalStateException("unexpected insertCount: " + insertCount);
       }
-      return DatabaseService.toVersionString(version);
     }
     catch (final RuntimeSqlException e) {
       if (e.isIntegrityContraintViolation()) {
@@ -181,6 +273,8 @@ public class DocumentService {
       }
       throw e;
     }
+    updateReferences(databaseInfo, documentId, json, true);
+    return DatabaseService.toVersionString(version);
   }
 
   public String updateDocument(final String databaseName, final String documentId, final JsonMap json) {
@@ -199,12 +293,18 @@ public class DocumentService {
       // the update must work, since we locked above
       throw new IllegalStateException("update failed unexpectedly: " + updateCount);
     }
+    updateReferences(info.databaseInfo, documentId, json, false);
     return DatabaseService.toVersionString(newVersion);
   }
 
   public void deleteDocument(final String databaseName, final String documentId, final String version) {
     final DocumentInfo info = getDocumentInfoAndLockAndCheckVersion(databaseName, documentId, version);
     try {
+      // first delete potentially existing outgoing references
+      databaseConnection.executeUpdate("delete from jds_reference where database_id = ? and from_document_id = ?",
+          info.databaseInfo.id, info.id);
+
+      // then delete the document
       final int updateCount = databaseConnection
           .executeUpdate("delete from jds_document where database_id = ? and id = ?", info.databaseInfo.id, info.id);
       if (updateCount != 1) {
