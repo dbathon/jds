@@ -16,7 +16,6 @@ import javax.json.stream.JsonGeneratorFactory;
 import javax.json.stream.JsonParser;
 import javax.json.stream.JsonParser.Event;
 import javax.json.stream.JsonParsingException;
-import javax.ws.rs.core.StreamingOutput;
 
 public class JsonUtil {
 
@@ -178,24 +177,6 @@ public class JsonUtil {
 
   public static String toJsonStringPretty(final Object value) {
     return toJsonString(value, true);
-  }
-
-  private static StreamingOutput toJsonStreamingOutput(final Object value, final boolean pretty) {
-    return outputStream -> {
-      final JsonGenerator generator =
-          pretty ? PRETTY_GENERATOR_FACTORY.createGenerator(outputStream) : PROVIDER.createGenerator(outputStream);
-      writeToGenerator(value, generator);
-      generator.flush();
-      // do not close the generator, because that would also close the outputStream
-    };
-  }
-
-  public static StreamingOutput toJsonStreamingOutput(final Object value) {
-    return toJsonStreamingOutput(value, false);
-  }
-
-  public static StreamingOutput toJsonStreamingOutputPretty(final Object value) {
-    return toJsonStreamingOutput(value, true);
   }
 
   private static Object readFromParser(final JsonParser parser, final Event currentEvent) {

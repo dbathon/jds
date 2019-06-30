@@ -1,7 +1,6 @@
 package de.dbathon.jds.resource;
 
 import static de.dbathon.jds.util.JsonUtil.readObjectFromJsonBytes;
-import static de.dbathon.jds.util.JsonUtil.toJsonStreamingOutputPretty;
 import static java.util.Objects.requireNonNull;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -18,7 +17,6 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
-import javax.ws.rs.core.StreamingOutput;
 import javax.ws.rs.core.UriInfo;
 
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -49,8 +47,8 @@ public class DatabaseResource {
   @GET
   @Operation(summary = "get information about the database")
   @APIResponse(responseCode = "200", content = @Content(schema = @Schema(ref = "jsonObject")))
-  public StreamingOutput get(@PathParam("databaseName") final String databaseName) {
-    return toJsonStreamingOutputPretty(databaseService.getDatabase(databaseName));
+  public JsonMap get(@PathParam("databaseName") final String databaseName) {
+    return databaseService.getDatabase(databaseName);
   }
 
   @PUT
@@ -86,13 +84,13 @@ public class DatabaseResource {
   @DELETE
   @Operation(summary = "delete a database")
   @APIResponse(responseCode = "200", content = @Content(schema = @Schema(ref = "jsonObject")))
-  public StreamingOutput delete(@PathParam("databaseName") final String databaseName,
+  public JsonMap delete(@PathParam("databaseName") final String databaseName,
       @QueryParam("version") final String version) {
     if (version == null) {
       throw new ApiException("version parameter is missing");
     }
     databaseService.deleteDatabase(databaseName, version);
-    return toJsonStreamingOutputPretty(new JsonMap());
+    return new JsonMap();
   }
 
 }

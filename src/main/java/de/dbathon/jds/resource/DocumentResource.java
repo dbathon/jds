@@ -2,7 +2,6 @@ package de.dbathon.jds.resource;
 
 import static de.dbathon.jds.util.JsonUtil.readJsonString;
 import static de.dbathon.jds.util.JsonUtil.readObjectFromJsonBytes;
-import static de.dbathon.jds.util.JsonUtil.toJsonStreamingOutputPretty;
 
 import java.util.List;
 
@@ -21,7 +20,6 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.ResponseBuilder;
 import javax.ws.rs.core.Response.Status;
-import javax.ws.rs.core.StreamingOutput;
 import javax.ws.rs.core.UriInfo;
 
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -54,9 +52,9 @@ public class DocumentResource {
   @Path("{documentId}")
   @Operation(summary = "get a document")
   @APIResponse(responseCode = "200", content = @Content(schema = @Schema(ref = "jsonObject")))
-  public StreamingOutput get(@PathParam("databaseName") final String databaseName,
+  public JsonMap get(@PathParam("databaseName") final String databaseName,
       @PathParam("documentId") final String documentId) {
-    return toJsonStreamingOutputPretty(documentService.getDocument(databaseName, documentId));
+    return documentService.getDocument(databaseName, documentId);
   }
 
   @PUT
@@ -89,13 +87,13 @@ public class DocumentResource {
   @Path("{documentId}")
   @Operation(summary = "delete a document")
   @APIResponse(responseCode = "200", content = @Content(schema = @Schema(ref = "jsonObject")))
-  public StreamingOutput delete(@PathParam("databaseName") final String databaseName,
+  public JsonMap delete(@PathParam("databaseName") final String databaseName,
       @PathParam("documentId") final String documentId, @QueryParam("version") final String version) {
     if (version == null) {
       throw new ApiException("version parameter is missing");
     }
     documentService.deleteDocument(databaseName, documentId, version);
-    return toJsonStreamingOutputPretty(new JsonMap());
+    return new JsonMap();
   }
 
   // TODO PATCH
