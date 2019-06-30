@@ -1,8 +1,10 @@
-package de.dbathon.jds.rest;
+package de.dbathon.jds.service;
 
 import static java.util.Objects.requireNonNull;
 
 import javax.ws.rs.core.Response.Status;
+
+import de.dbathon.jds.rest.AnyExceptionMapper;
 
 /**
  * Will be mapped to an appropriate response using {@link #getStatus()} and {@link #getMessage()} by

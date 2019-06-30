@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import de.dbathon.jds.rest.ApiException;
 import de.dbathon.jds.util.JsonMap;
 import de.dbathon.jds.util.JsonStringNumber;
 

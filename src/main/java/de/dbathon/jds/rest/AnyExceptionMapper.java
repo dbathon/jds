@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.List;
 
 import javax.enterprise.context.ApplicationScoped;
-import javax.inject.Inject;
 import javax.json.stream.JsonParsingException;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
@@ -16,14 +15,13 @@ import javax.ws.rs.ext.Provider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import de.dbathon.jds.service.ApiException;
+
 @Provider
 @ApplicationScoped
 public class AnyExceptionMapper implements ExceptionMapper<Throwable> {
 
   private static final Logger log = LoggerFactory.getLogger(AnyExceptionMapper.class);
-
-  @Inject
-  RestHelper restHelper;
 
   private List<Throwable> reverseCauseList(Throwable throwable) {
     final List<Throwable> result = new ArrayList<>();
@@ -54,10 +52,10 @@ public class AnyExceptionMapper implements ExceptionMapper<Throwable> {
       else if (e instanceof ApiException) {
         final ApiException requestError = (ApiException) e;
         // no logging
-        return restHelper.buildErrorResponse(requestError.getStatus(), requestError.getMessage());
+        return RestUtil.buildErrorResponse(requestError.getStatus(), requestError.getMessage());
       }
       else if (e instanceof JsonParsingException) {
-        response = restHelper.buildErrorResponse(Status.BAD_REQUEST, "invalid json");
+        response = RestUtil.buildErrorResponse(Status.BAD_REQUEST, "invalid json");
       }
       // TODO: more?
 
@@ -69,7 +67,7 @@ public class AnyExceptionMapper implements ExceptionMapper<Throwable> {
 
     // log original exception
     log.warn("request failed with unexpected exception", exception);
-    return restHelper.buildErrorResponse(Status.INTERNAL_SERVER_ERROR, "unexpected error");
+    return RestUtil.buildErrorResponse(Status.INTERNAL_SERVER_ERROR, "unexpected error");
   }
 
 }

@@ -1,4 +1,4 @@
-package de.dbathon.jds.resource;
+package de.dbathon.jds.rest;
 
 import static de.dbathon.jds.util.JsonUtil.readObjectFromJsonBytes;
 import static java.util.Objects.requireNonNull;
@@ -26,8 +26,7 @@ import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
-import de.dbathon.jds.rest.ApiException;
-import de.dbathon.jds.rest.RestHelper;
+import de.dbathon.jds.service.ApiException;
 import de.dbathon.jds.service.DatabaseService;
 import de.dbathon.jds.util.JsonMap;
 
@@ -40,9 +39,6 @@ public class DatabaseResource {
 
   @Inject
   DatabaseService databaseService;
-
-  @Inject
-  RestHelper restHelper;
 
   @GET
   @Operation(summary = "get information about the database")
@@ -72,12 +68,12 @@ public class DatabaseResource {
       if (!databaseName.equals(name)) {
         throw new ApiException("name does not match");
       }
-      return restHelper.buildJsonResponse(Response.created(uriInfo.getAbsolutePath()),
+      return RestUtil.buildJsonResponse(Response.created(uriInfo.getAbsolutePath()),
           databaseService.createDatabase(name));
     }
     else {
       // rename
-      return restHelper.buildJsonResponse(Status.OK, databaseService.renameDatabase(databaseName, version, name));
+      return RestUtil.buildJsonResponse(Status.OK, databaseService.renameDatabase(databaseName, version, name));
     }
   }
 

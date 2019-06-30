@@ -23,7 +23,6 @@ import javax.ws.rs.core.Response.Status;
 
 import de.dbathon.jds.persistence.DatabaseConnection;
 import de.dbathon.jds.persistence.RuntimeSqlException;
-import de.dbathon.jds.rest.ApiException;
 import de.dbathon.jds.service.DatabaseService.DatabaseInfo;
 import de.dbathon.jds.util.JsonMap;
 import de.dbathon.jds.util.JsonUtil;

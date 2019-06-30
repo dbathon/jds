@@ -1,4 +1,4 @@
-package de.dbathon.jds.resource;
+package de.dbathon.jds.rest;
 
 import static de.dbathon.jds.util.JsonUtil.readJsonString;
 import static de.dbathon.jds.util.JsonUtil.readObjectFromJsonBytes;
@@ -31,8 +31,7 @@ import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
-import de.dbathon.jds.rest.ApiException;
-import de.dbathon.jds.rest.RestHelper;
+import de.dbathon.jds.service.ApiException;
 import de.dbathon.jds.service.DocumentService;
 import de.dbathon.jds.util.JsonMap;
 
@@ -43,8 +42,6 @@ import de.dbathon.jds.util.JsonMap;
 @Tag(name = "document")
 public class DocumentResource {
 
-  @Inject
-  RestHelper restHelper;
   @Inject
   DocumentService documentService;
 
@@ -80,7 +77,7 @@ public class DocumentResource {
       response = Response.ok();
     }
     // do not return the full document, just the id and version
-    return restHelper.buildJsonResponse(response, new JsonMap().add("id", documentId).add("version", newVersion));
+    return RestUtil.buildJsonResponse(response, new JsonMap().add("id", documentId).add("version", newVersion));
   }
 
   @DELETE
@@ -124,7 +121,7 @@ public class DocumentResource {
     final List<JsonMap> documents =
         documentService.queryDocuments(databaseName, filters != null ? readJsonString(filters) : null,
             tryParseInteger(limit, "limit"), tryParseInteger(offset, "offset"));
-    return restHelper.buildResultResponse(Status.OK, documents);
+    return RestUtil.buildResultResponse(Status.OK, documents);
   }
 
   @GET
@@ -135,7 +132,7 @@ public class DocumentResource {
       @PathParam("databaseName") @Parameter(name = "databaseName", required = true) final String databaseName,
       @QueryParam("filters") @Parameter(name = "filters", required = false) final String filters) {
     final Long count = documentService.countDocuments(databaseName, filters != null ? readJsonString(filters) : null);
-    return restHelper.buildResultResponse(Status.OK, count);
+    return RestUtil.buildResultResponse(Status.OK, count);
   }
 
 }
