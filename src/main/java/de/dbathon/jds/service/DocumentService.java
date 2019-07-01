@@ -1,10 +1,10 @@
 package de.dbathon.jds.service;
 
+import static de.dbathon.jds.util.JsonUtil.readJsonString;
 import static de.dbathon.jds.util.JsonUtil.toJsonString;
 import static java.util.Objects.requireNonNull;
 
 import java.io.Serializable;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -17,7 +17,6 @@ import java.util.regex.Pattern;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.json.stream.JsonGenerator;
 import javax.transaction.Transactional;
 import javax.ws.rs.core.Response.Status;
 
@@ -113,12 +112,11 @@ public class DocumentService {
     return info;
   }
 
-  private String toDataJsonString(final JsonMap json, final String expectedId, final String expectedVersion) {
-    final StringWriter stringWriter = new StringWriter();
-    final JsonGenerator generator = JsonUtil.PROVIDER.createGenerator(stringWriter);
+  private JsonMap validateAndRemoveSpecialProperties(final JsonMap json, final String expectedId,
+      final String expectedVersion) {
+    final JsonMap result = new JsonMap();
     boolean versionSeen = false;
 
-    generator.writeStartObject();
     for (final Map.Entry<String, ?> entry : json.entrySet()) {
       final String key = entry.getKey();
       final Object value = entry.getValue();
@@ -145,19 +143,16 @@ public class DocumentService {
         }
       }
       else {
-        // just write everything else
-        generator.writeKey(key);
-        JsonUtil.writeToGenerator(value, generator);
+        // just keep everything else
+        result.put(key, value);
       }
     }
-    generator.writeEnd();
-    generator.flush();
 
     if (expectedVersion != null && !versionSeen) {
       throw new ApiException("version is missing");
     }
 
-    return stringWriter.toString();
+    return result;
   }
 
   private void extractReferencedIdsRecursive(final Object object, final Set<String> result) {
@@ -254,7 +249,7 @@ public class DocumentService {
   public String createDocument(final String databaseName, final String documentId, final JsonMap json) {
     validateId(documentId);
     final DatabaseInfo databaseInfo = databaseCache.getDatabaseInfoAndLock(databaseName);
-    final String dataJson = toDataJsonString(json, documentId, null);
+    final String dataJson = toJsonString(validateAndRemoveSpecialProperties(json, documentId, null));
     final Long version = databaseCache.getIncrementedVersion(databaseInfo);
     try {
       // random id between 1 and Integer.MAX_VALUE
@@ -279,10 +274,19 @@ public class DocumentService {
   public String updateDocument(final String databaseName, final String documentId, final JsonMap json) {
     validateId(documentId);
     final DocumentInfo info = getDocumentInfoAndLock(databaseName, documentId);
-    final String dataJson = toDataJsonString(json, documentId, DatabaseService.toVersionString(info.version));
+    final JsonMap processedJson =
+        validateAndRemoveSpecialProperties(json, documentId, DatabaseService.toVersionString(info.version));
 
-    // TODO: detect unchanged document and don't increment version?
+    // load the existing document and compare to see if the document is unchanged
+    final JsonMap existingJson = (JsonMap) readJsonString(databaseConnection.queryNoOrOneResult(
+        "select data from jds_document where database_id = ? and id = ? and version = ?", String.class,
+        info.databaseInfo.id, documentId, info.version));
+    if (existingJson.equals(processedJson)) {
+      // no changes, don't update
+      return DatabaseService.toVersionString(info.version);
+    }
 
+    final String dataJson = toJsonString(processedJson);
     final Long newVersion = databaseCache.getIncrementedVersion(info.databaseInfo);
 
     final int updateCount = databaseConnection.executeUpdate(

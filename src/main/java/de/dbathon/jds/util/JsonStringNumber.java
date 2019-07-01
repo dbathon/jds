@@ -1,7 +1,5 @@
 package de.dbathon.jds.util;
 
-import static java.util.Objects.requireNonNull;
-
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
@@ -9,7 +7,10 @@ import javax.json.JsonNumber;
 
 /**
  * A {@link JsonNumber} implementation that avoids parsing the number if possible. If the numerical
- * value is not accessed then it will not be parsed.
+ * value is not accessed then it might not be parsed/converted to a {@link BigDecimal}.
+ * <p>
+ * The given number string is also normalized, so that the scale of the corresponding
+ * {@link BigDecimal} is as small as possible, but not negative.
  */
 public class JsonStringNumber implements JsonNumber {
 
@@ -23,8 +24,45 @@ public class JsonStringNumber implements JsonNumber {
    */
   private BigDecimal bigDecimalValue;
 
+  /**
+   * @param value
+   *          must be a valid json number string
+   */
   public JsonStringNumber(final String value) {
-    this.value = requireNonNull(value);
+    this.value = normalizeNumber(value);
+  }
+
+  private String normalizeNumber(final String value) {
+    // we assume that value is a valid json number string...
+
+    if (value.contains("e") || value.contains("E")) {
+      // handle 'e' by just parsing the string now
+      BigDecimal temp = new BigDecimal(value);
+      if (temp.scale() != 0) {
+        temp = temp.stripTrailingZeros();
+        if (temp.scale() < 0) {
+          temp = temp.setScale(0);
+        }
+      }
+      // since we already created the BigDecimal, just keep it
+      bigDecimalValue = temp;
+      return temp.toString();
+    }
+    else if (value.contains(".") && (value.endsWith("0") || value.endsWith("."))) {
+      // just remove the trailing zeros and potentially the '.' from the string
+      int index = value.length() - 1;
+      while (index >= 0 && value.charAt(index) == '0') {
+        --index;
+      }
+      if (index >= 0 && value.charAt(index) == '.') {
+        --index;
+      }
+      return value.substring(0, index + 1);
+    }
+    else {
+      // just return the value as is
+      return value;
+    }
   }
 
   @Override
