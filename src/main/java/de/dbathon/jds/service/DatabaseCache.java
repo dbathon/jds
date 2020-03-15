@@ -4,72 +4,52 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.transaction.TransactionSynchronizationRegistry;
-import javax.transaction.Transactional;
-import javax.transaction.Transactional.TxType;
+import javax.transaction.TransactionScoped;
 
 import de.dbathon.jds.service.DatabaseService.DatabaseInfo;
 
 /**
  * Caches infos about databases for the current transaction.
  */
-@ApplicationScoped
-@Transactional(TxType.MANDATORY)
+@TransactionScoped
 public class DatabaseCache implements Serializable {
 
   @Inject
   DatabaseService databaseService;
 
-  @Inject
-  TransactionSynchronizationRegistry transactionSynchronizationRegistry;
+  /**
+   * Every database in this map has been locked in the current transaction.
+   */
+  private final Map<String, DatabaseInfo> nameToInfo = new HashMap<>();
 
-  private static class State {
-    /**
-     * Every database in this map has been locked in the current transaction.
-     */
-    final Map<String, DatabaseInfo> nameToInfo = new HashMap<>();
+  /**
+   * Entries in here are potentially not locked.
+   */
+  private final Map<String, Integer> nameToId = new HashMap<>();
 
-    /**
-     * Entries in here are potentially not locked.
-     */
-    final Map<String, Integer> nameToId = new HashMap<>();
-
-    final Map<Integer, Long> idToIncrementedVersion = new HashMap<>();
-  }
-
-  private State getState() {
-    State result = (State) transactionSynchronizationRegistry.getResource(State.class);
-    if (result == null) {
-      result = new State();
-      transactionSynchronizationRegistry.putResource(State.class, result);
-    }
-    return result;
-  }
+  private final Map<Integer, Long> idToIncrementedVersion = new HashMap<>();
 
   public DatabaseInfo getDatabaseInfoAndLock(final String databaseName) {
-    final State state = getState();
-    DatabaseInfo result = state.nameToInfo.get(databaseName);
+    DatabaseInfo result = nameToInfo.get(databaseName);
     if (result == null) {
       result = databaseService.getDatabaseInfoAndLock(databaseName);
-      state.nameToInfo.put(databaseName, result);
+      nameToInfo.put(databaseName, result);
     }
     return result;
   }
 
   public Integer getDatabaseId(final String databaseName) {
-    final State state = getState();
     // if we locked the database before, then use that
-    final DatabaseInfo databaseInfo = state.nameToInfo.get(databaseName);
+    final DatabaseInfo databaseInfo = nameToInfo.get(databaseName);
     if (databaseInfo != null) {
       return databaseInfo.id;
     }
     // otherwise check nameToId
-    Integer result = state.nameToId.get(databaseName);
+    Integer result = nameToId.get(databaseName);
     if (result == null) {
       result = databaseService.getDatabaseId(databaseName);
-      state.nameToId.put(databaseName, result);
+      nameToId.put(databaseName, result);
     }
     return result;
   }
@@ -83,11 +63,10 @@ public class DatabaseCache implements Serializable {
    * @return the incremented version for the database
    */
   public Long getIncrementedVersion(final DatabaseInfo databaseInfo) {
-    final State state = getState();
-    Long result = state.idToIncrementedVersion.get(databaseInfo.id);
+    Long result = idToIncrementedVersion.get(databaseInfo.id);
     if (result == null) {
       result = databaseService.incrementVersion(databaseInfo);
-      state.idToIncrementedVersion.put(databaseInfo.id, result);
+      idToIncrementedVersion.put(databaseInfo.id, result);
     }
     return result;
   }
