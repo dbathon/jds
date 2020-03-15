@@ -65,7 +65,7 @@ public class QueryBuilder {
         else {
           string = stringBuilder.toString();
           if (addCount == 1) {
-            // strip the parentheses the add call below will add them again if necessary
+            // strip the parentheses, the add call below will add them again if necessary
             string = string.substring(1, string.length() - 1);
           }
         }
