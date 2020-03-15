@@ -144,7 +144,7 @@ public class DatabaseConnection {
       return results.get(0);
     }
     else {
-      throw new IllegalStateException("more than one result (" + results.size() + " for query: " + sql);
+      throw new IllegalStateException("more than one result (" + results.size() + ") for query: " + sql);
     }
   }
 
