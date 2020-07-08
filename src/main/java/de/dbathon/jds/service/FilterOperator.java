@@ -26,14 +26,9 @@ public abstract class FilterOperator {
     filterOperators.put(">", new SimpleOperator(">", false, String.class, JsonStringNumber.class));
     filterOperators.put(">=", new SimpleOperator(">=", false, String.class, JsonStringNumber.class));
 
-    // TODO: is (string, number, null, undefined etc.), prefix (mainly for id), like, ilike, in
-
     FILTER_OPERATORS = Collections.unmodifiableMap(filterOperators);
   }
 
-  /**
-   * TODO: allow more characters in names
-   */
   protected static final String VALID_NAME_PATTERN_STRING = "[a-zA-Z0-9_\\-]+";
   protected static final String VALID_INDEX_PATTERN_STRING = "\\[(?:[1-9][0-9]{0,8}|0)\\]";
 
@@ -102,7 +97,6 @@ public abstract class FilterOperator {
     }
 
     protected void applyNonSpecialKey(final QueryBuilder queryBuilder, final String key, final Object rightHandSide) {
-      // TODO: value type check for inequality operators?! currently 1 >= "10"
       addToQueryBuilder(queryBuilder, getJsonPathExpression(key) + " " + operator + " ?::jsonb",
           toJsonString(rightHandSide));
     }
@@ -114,7 +108,6 @@ public abstract class FilterOperator {
       }
       if (isSpecialKey(key)) {
         if (rightHandSide instanceof String) {
-          // TODO: improve handling of version (string vs. long)...
           final String keyExpression = DocumentService.VERSION_PROPERTY.equals(key) ? "version::text" : key;
           addToQueryBuilder(queryBuilder, keyExpression + " " + operator + " ?", rightHandSide);
         }
