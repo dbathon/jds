@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 
 import org.junit.jupiter.api.Test;
 
-class JsonStringNumberTest {
+public class JsonStringNumberTest {
 
   @Test
   void testNormalize() {
