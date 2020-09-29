@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -340,7 +341,7 @@ public class DocumentService {
 
   private void applyContainsOperator(final QueryBuilder queryBuilder, final Object value) {
     if (!(value instanceof JsonMap)) {
-      throw new ApiException("invalid right hand side for _contains: " + toJsonString(value));
+      throw new ApiException("invalid operand for contains: " + toJsonString(value));
     }
     // copy the map, because we might modify it below
     final JsonMap map = new JsonMap((JsonMap) value);
@@ -363,51 +364,77 @@ public class DocumentService {
     });
   }
 
+  private List<?> toList(final Iterable<?> filters) {
+    if (filters instanceof List<?>) {
+      // simple case, just cast
+      return (List<?>) filters;
+    }
+    final List<Object> result = new ArrayList<>();
+    filters.forEach(result::add);
+    return result;
+  }
+
   private void applyFilters(final QueryBuilder queryBuilder, final Object filters) {
     if (filters instanceof Map<?, ?>) {
       for (final Entry<?, ?> entry : ((Map<?, ?>) filters).entrySet()) {
         // keys must be strings
         final String key = String.valueOf(entry.getKey());
         final Object value = entry.getValue();
-        if (key.startsWith("_")) {
-          // special cases
-          switch (key) {
-          case "_and":
-            queryBuilder.withAnd(() -> {
-              applyFilters(queryBuilder, value);
-            });
-            break;
-          case "_or":
-            queryBuilder.withOr(() -> {
-              applyFilters(queryBuilder, value);
-            });
-            break;
-          case "_contains":
-            // special case where the key is the operator
-            applyContainsOperator(queryBuilder, value);
-            break;
-          default:
-            throw new ApiException("unexpected filter key: " + key);
+
+        if (value instanceof Map<?, ?>) {
+          // if it is a map then the key is the operator and the value is the right hand side
+          for (final Entry<?, ?> operatorEntry : ((Map<?, ?>) value).entrySet()) {
+            applyFilterOperator(queryBuilder, key, String.valueOf(operatorEntry.getKey()), operatorEntry.getValue());
           }
         }
         else {
-          if (value instanceof Map<?, ?>) {
-            // if it is a map then the key is the operator and the value is the right hand side
-            for (final Entry<?, ?> operatorEntry : ((Map<?, ?>) value).entrySet()) {
-              applyFilterOperator(queryBuilder, key, String.valueOf(operatorEntry.getKey()), operatorEntry.getValue());
-            }
-          }
-          else {
-            // the default operator is =
-            applyFilterOperator(queryBuilder, key, "=", value);
-          }
+          // the default operator is =
+          applyFilterOperator(queryBuilder, key, "=", value);
         }
       }
     }
     else if (filters instanceof Iterable<?>) {
-      // for iterables just apply all the elements
-      for (final Object element : (Iterable<?>) filters) {
-        applyFilters(queryBuilder, element);
+      final List<?> list = toList((Iterable<?>) filters);
+      if (!list.isEmpty()) {
+        final String operator;
+        final List<?> restList;
+        if (list.get(0) instanceof String) {
+          operator = (String) list.get(0);
+          restList = list.subList(1, list.size());
+        }
+        else {
+          // default to and
+          operator = "and";
+          restList = list;
+        }
+
+        final Consumer<Runnable> queryBuilderWith;
+        Consumer<Object> specialEntryAction = null;
+
+        switch (operator) {
+        case "contains":
+          // for contains, we need a different entryAction
+          specialEntryAction = entry -> applyContainsOperator(queryBuilder, entry);
+          // fall through
+        case "and":
+          queryBuilderWith = queryBuilder::withAnd;
+          break;
+        case "not":
+          queryBuilderWith = queryBuilder::withNot;
+          break;
+        case "or":
+          queryBuilderWith = queryBuilder::withOr;
+          break;
+        default:
+          throw new ApiException("unexpected operator: " + operator);
+        }
+
+        final Consumer<Object> entryAction =
+            specialEntryAction != null ? specialEntryAction : entry -> applyFilters(queryBuilder, entry);
+
+        queryBuilderWith.accept(() -> {
+          restList.forEach(entryAction);
+        });
       }
     }
     else if (filters == null) {
