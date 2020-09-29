@@ -73,13 +73,11 @@ public abstract class FilterOperator {
 
     protected void addToQueryBuilder(final QueryBuilder queryBuilder, final String expression,
         final Object... parameters) {
-      if (negate) {
-        // negate using case when to avoid the "null logic"
-        queryBuilder.add("case when " + expression + " then false else true end", parameters);
-      }
-      else {
-        queryBuilder.add(expression, parameters);
-      }
+      /**
+       * We don't want null to propagate in logical expressions, mainly because "not null" is null,
+       * but we would like it to be "true", so always coalesce it to false.
+       */
+      queryBuilder.add((negate ? "not coalesce(" : "coalesce(") + expression + ", false)", parameters);
     }
 
     protected String getJsonPathExpression(final String key) {
