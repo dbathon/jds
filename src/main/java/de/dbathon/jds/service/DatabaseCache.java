@@ -28,7 +28,7 @@ public class DatabaseCache implements Serializable {
    */
   private final Map<String, Integer> nameToId = new HashMap<>();
 
-  private final Map<Integer, Long> idToIncrementedVersion = new HashMap<>();
+  private final Map<Integer, String> idToIncrementedVersion = new HashMap<>();
 
   public DatabaseInfo getDatabaseInfoAndLock(final String databaseName) {
     DatabaseInfo result = nameToInfo.get(databaseName);
@@ -62,8 +62,8 @@ public class DatabaseCache implements Serializable {
    * @param databaseInfo
    * @return the incremented version for the database
    */
-  public Long getIncrementedVersion(final DatabaseInfo databaseInfo) {
-    Long result = idToIncrementedVersion.get(databaseInfo.id);
+  public String getIncrementedVersion(final DatabaseInfo databaseInfo) {
+    String result = idToIncrementedVersion.get(databaseInfo.id);
     if (result == null) {
       result = databaseService.incrementVersion(databaseInfo);
       idToIncrementedVersion.put(databaseInfo.id, result);

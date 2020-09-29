@@ -114,9 +114,7 @@ public abstract class FilterOperator {
       }
       if (isSpecialKey(key)) {
         if (rightHandSide instanceof String) {
-          // TODO: improve handling of version (string vs. long)...
-          final String keyExpression = DocumentService.VERSION_PROPERTY.equals(key) ? "version::text" : key;
-          addToQueryBuilder(queryBuilder, keyExpression + " " + operator + " ?", rightHandSide);
+          addToQueryBuilder(queryBuilder, key + " " + operator + " ?", rightHandSide);
         }
         else {
           // else it is false (the special keys are always string not null)

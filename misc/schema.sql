@@ -3,7 +3,7 @@ create table jds_database (
   id int4 not null,
   name varchar(200) collate "C" not null unique,
   -- the version of the database
-  version int8 not null,
+  version varchar(200) collate "C" not null,
   -- TODO: authorization
   primary key (id)
 );
@@ -12,7 +12,7 @@ create table jds_document (
   database_id int4 not null,
   id varchar(200) collate "C" not null,
   -- the version of the document
-  version int8 not null,
+  version varchar(200) collate "C" not null,
   data jsonb not null,
   primary key (database_id, id),
   foreign key (database_id) references jds_database (id)

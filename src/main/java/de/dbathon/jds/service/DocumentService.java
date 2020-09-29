@@ -37,8 +37,9 @@ public class DocumentService {
   public static final List<String> SPECIAL_STRING_PROPERTIES =
       Collections.unmodifiableList(Arrays.asList(ID_PROPERTY, VERSION_PROPERTY));
 
-  private static final Class<?>[] LONG_STRING_TYPES = new Class<?>[] { Long.class, String.class };
-  private static final Class<?>[] STRING_LONG_STRING_TYPES = new Class<?>[] { String.class, Long.class, String.class };
+  private static final Class<?>[] STRING_STRING_TYPES = new Class<?>[] { String.class, String.class };
+  private static final Class<?>[] STRING_STRING_STRING_TYPES =
+      new Class<?>[] { String.class, String.class, String.class };
 
   @Inject
   DatabaseConnection databaseConnection;
@@ -49,9 +50,15 @@ public class DocumentService {
   public static class DocumentInfo implements Serializable {
     public final DatabaseInfo databaseInfo;
     public final String id;
-    public final Long version;
+    /**
+     * The document version, which is the version of the database at which the document was inserted
+     * or last updated.
+     * <p>
+     * See {@link DatabaseInfo#version}.
+     */
+    public final String version;
 
-    public DocumentInfo(final DatabaseInfo databaseInfo, final String id, final Long version) {
+    public DocumentInfo(final DatabaseInfo databaseInfo, final String id, final String version) {
       this.databaseInfo = requireNonNull(databaseInfo);
       this.id = requireNonNull(id);
       this.version = requireNonNull(version);
@@ -65,8 +72,8 @@ public class DocumentService {
   public DocumentInfo getDocumentInfoAndLock(final String databaseName, final String documentId) {
     final DatabaseInfo databaseInfo = databaseCache.getDatabaseInfoAndLock(databaseName);
     // no need to lock the specific document, since we are locking the whole database
-    final Long version = databaseConnection.queryNoOrOneResult(
-        "select version from jds_document where database_id = ? and id = ?", Long.class, databaseInfo.id, documentId);
+    final String version = databaseConnection.queryNoOrOneResult(
+        "select version from jds_document where database_id = ? and id = ?", String.class, databaseInfo.id, documentId);
     if (version == null) {
       throw notFoundException();
     }
@@ -79,9 +86,8 @@ public class DocumentService {
     }
   }
 
-  private JsonMap buildJsonObject(final String id, final Long version, final String dataJson) {
-    final JsonMap result =
-        new JsonMap().add(ID_PROPERTY, id).add(VERSION_PROPERTY, DatabaseService.toVersionString(version));
+  private JsonMap buildJsonObject(final String id, final String version, final String dataJson) {
+    final JsonMap result = new JsonMap().add(ID_PROPERTY, id).add(VERSION_PROPERTY, version);
     final JsonMap data = (JsonMap) JsonUtil.readJsonString(dataJson);
     result.putAll(data);
     return result;
@@ -92,11 +98,11 @@ public class DocumentService {
     final Object[] row = databaseConnection.queryNoOrOneResult(
         "select d.version, d.data from jds_document d "
             + "join jds_database b on d.database_id = b.id where b.name = ? and d.id = ?",
-        Object[].class, LONG_STRING_TYPES, databaseName, documentId);
+        Object[].class, STRING_STRING_TYPES, databaseName, documentId);
     if (row == null) {
       throw notFoundException();
     }
-    return buildJsonObject(documentId, (Long) row[0], (String) row[1]);
+    return buildJsonObject(documentId, (String) row[0], (String) row[1]);
   }
 
   private ApiException versionDoesNotMatchException() {
@@ -106,7 +112,7 @@ public class DocumentService {
   private DocumentInfo getDocumentInfoAndLockAndCheckVersion(final String databaseName, final String documentId,
       final String version) {
     final DocumentInfo info = getDocumentInfoAndLock(databaseName, documentId);
-    if (!version.equals(DatabaseService.toVersionString(info.version))) {
+    if (!version.equals(info.version)) {
       throw versionDoesNotMatchException();
     }
     return info;
@@ -250,7 +256,7 @@ public class DocumentService {
     validateId(documentId);
     final DatabaseInfo databaseInfo = databaseCache.getDatabaseInfoAndLock(databaseName);
     final String dataJson = toJsonString(validateAndRemoveSpecialProperties(json, documentId, null));
-    final Long version = databaseCache.getIncrementedVersion(databaseInfo);
+    final String version = databaseCache.getIncrementedVersion(databaseInfo);
     try {
       // random id between 1 and Integer.MAX_VALUE
       final int insertCount = databaseConnection.executeUpdate(
@@ -268,14 +274,13 @@ public class DocumentService {
       throw e;
     }
     updateReferences(databaseInfo, documentId, json, true);
-    return DatabaseService.toVersionString(version);
+    return version;
   }
 
   public String updateDocument(final String databaseName, final String documentId, final JsonMap json) {
     validateId(documentId);
     final DocumentInfo info = getDocumentInfoAndLock(databaseName, documentId);
-    final JsonMap processedJson =
-        validateAndRemoveSpecialProperties(json, documentId, DatabaseService.toVersionString(info.version));
+    final JsonMap processedJson = validateAndRemoveSpecialProperties(json, documentId, info.version);
 
     // load the existing document and compare to see if the document is unchanged
     final JsonMap existingJson = (JsonMap) readJsonString(databaseConnection.queryNoOrOneResult(
@@ -283,11 +288,11 @@ public class DocumentService {
         info.databaseInfo.id, documentId, info.version));
     if (existingJson.equals(processedJson)) {
       // no changes, don't update
-      return DatabaseService.toVersionString(info.version);
+      return info.version;
     }
 
     final String dataJson = toJsonString(processedJson);
-    final Long newVersion = databaseCache.getIncrementedVersion(info.databaseInfo);
+    final String newVersion = databaseCache.getIncrementedVersion(info.databaseInfo);
 
     final int updateCount = databaseConnection.executeUpdate(
         "update jds_document set version = ?, data = ?::jsonb where database_id = ? and id = ? and version = ?",
@@ -297,7 +302,7 @@ public class DocumentService {
       throw new IllegalStateException("update failed unexpectedly: " + updateCount);
     }
     updateReferences(info.databaseInfo, documentId, json, false);
-    return DatabaseService.toVersionString(newVersion);
+    return newVersion;
   }
 
   public void deleteDocument(final String databaseName, final String documentId, final String version) {
@@ -454,11 +459,11 @@ public class DocumentService {
     }
 
     final List<Object[]> rows = databaseConnection.query(queryBuilder.getString(), Object[].class,
-        STRING_LONG_STRING_TYPES, queryBuilder.getParametersArray());
+        STRING_STRING_STRING_TYPES, queryBuilder.getParametersArray());
 
     final List<JsonMap> result = new ArrayList<>();
     for (final Object[] row : rows) {
-      result.add(buildJsonObject((String) row[0], (Long) row[1], (String) row[2]));
+      result.add(buildJsonObject((String) row[0], (String) row[1], (String) row[2]));
     }
     return result;
   }
