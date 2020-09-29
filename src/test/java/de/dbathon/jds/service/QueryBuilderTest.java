@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
-class QueryBuilderTest {
+public class QueryBuilderTest {
 
   @Test
   void test() {
@@ -25,6 +25,9 @@ class QueryBuilderTest {
         queryBuilder.withAnd(() -> {
           queryBuilder.add("a = 2");
           queryBuilder.add("a = 2");
+          queryBuilder.withNot(() -> {
+            queryBuilder.add("a = 5");
+          });
         });
         queryBuilder.withOr(() -> {
           queryBuilder.add("a = 3");
@@ -32,9 +35,21 @@ class QueryBuilderTest {
         queryBuilder.withOr(() -> {
           queryBuilder.add("a = 4");
           queryBuilder.add("a = 4");
+          queryBuilder.withNot(() -> {
+            queryBuilder.add("a = 7");
+            queryBuilder.add("a = 8");
+          });
+        });
+        queryBuilder.withNot(() -> {
+          queryBuilder.withOr(() -> {
+            queryBuilder.add("a = 1");
+            queryBuilder.add("a = 2");
+          });
         });
       });
-      assertEquals("where (a = 1) and (a = 2) and (a = 2) and (a = 3) and ((a = 4) or (a = 4))",
+      assertEquals(
+          "where (a = 1) and (a = 2) and (a = 2) and (not (a = 5)) and (a = 3) "
+              + "and ((a = 4) or (a = 4) or (not ((a = 7) and (a = 8)))) and (not ((a = 1) or (a = 2)))",
           queryBuilder.getString());
     }
   }

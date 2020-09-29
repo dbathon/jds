@@ -15,11 +15,16 @@ public class QueryBuilder {
 
   private int addCount = 0;
 
+  private String realOperator(final String operator) {
+    // "not" is actually "and" internally...
+    return "not".equals(operator) ? "and" : operator;
+  }
+
   public void add(final String expression, final Object... parameters) {
     if (addCount > 0) {
       stringBuilder.append(" ");
       if (currentOperator != null) {
-        stringBuilder.append(currentOperator).append(" ");
+        stringBuilder.append(realOperator(currentOperator)).append(" ");
       }
     }
 
@@ -74,7 +79,12 @@ public class QueryBuilder {
         addCount = previousAddCount;
 
         if (string != null) {
-          add(string);
+          if ("not".equals(operator)) {
+            add("not (" + string + ")");
+          }
+          else {
+            add(string);
+          }
         }
       }
     }
@@ -82,6 +92,10 @@ public class QueryBuilder {
 
   public void withAnd(final Runnable runnable) {
     withOperator("and", runnable);
+  }
+
+  public void withNot(final Runnable runnable) {
+    withOperator("not", runnable);
   }
 
   public void withOr(final Runnable runnable) {
