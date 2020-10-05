@@ -102,9 +102,24 @@ public abstract class FilterOperator {
     protected void applyNonSpecialKey(final QueryBuilder queryBuilder, final String key, final Object rightHandSide) {
       final StringBuilder builder = new StringBuilder();
       final String pathExpression = getJsonPathExpression(key);
-      builder.append(pathExpression).append(" ").append(operator).append(" ?::jsonb");
+      builder.append(pathExpression).append(" ");
+      final String parameter;
 
-      if (!"=".equals(operator)) {
+      final boolean isEqualsOperator = "=".equals(operator);
+      if (!isEqualsOperator && rightHandSide instanceof String) {
+        /**
+         * For comparisons of strings use the "C" collation to have predictable results independent
+         * of the default collation of the database.
+         */
+        builder.append("#>> '{}' ").append(operator).append(" (? collate \"C\")");
+        parameter = (String) rightHandSide;
+      }
+      else {
+        builder.append(operator).append(" ?::jsonb");
+        parameter = toJsonString(rightHandSide);
+      }
+
+      if (!isEqualsOperator) {
         /**
          * For all operators except "=" also make sure the type matches, postgres will compare
          * numbers with strings etc. but we don't really want that, if the types do not match, then
@@ -125,7 +140,7 @@ public abstract class FilterOperator {
         builder.append(" and jsonb_typeof(").append(pathExpression).append(") = '").append(expectedType).append("'");
       }
 
-      addToQueryBuilder(queryBuilder, builder.toString(), toJsonString(rightHandSide));
+      addToQueryBuilder(queryBuilder, builder.toString(), parameter);
     }
 
     @Override
