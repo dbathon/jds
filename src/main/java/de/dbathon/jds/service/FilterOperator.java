@@ -100,9 +100,32 @@ public abstract class FilterOperator {
     }
 
     protected void applyNonSpecialKey(final QueryBuilder queryBuilder, final String key, final Object rightHandSide) {
-      // TODO: value type check for inequality operators?! currently 1 >= "10"
-      addToQueryBuilder(queryBuilder, getJsonPathExpression(key) + " " + operator + " ?::jsonb",
-          toJsonString(rightHandSide));
+      final StringBuilder builder = new StringBuilder();
+      final String pathExpression = getJsonPathExpression(key);
+      builder.append(pathExpression).append(" ").append(operator).append(" ?::jsonb");
+
+      if (!"=".equals(operator)) {
+        /**
+         * For all operators except "=" also make sure the type matches, postgres will compare
+         * numbers with strings etc. but we don't really want that, if the types do not match, then
+         * it should be false.
+         */
+        final String expectedType;
+        if (rightHandSide instanceof String) {
+          expectedType = "string";
+        }
+        else if (rightHandSide instanceof JsonStringNumber) {
+          expectedType = "number";
+        }
+        else {
+          throw new IllegalStateException(
+              "unexpected right ahand side for operator " + operator + ": " + rightHandSide);
+        }
+
+        builder.append(" and jsonb_typeof(").append(pathExpression).append(") = '").append(expectedType).append("'");
+      }
+
+      addToQueryBuilder(queryBuilder, builder.toString(), toJsonString(rightHandSide));
     }
 
     @Override
