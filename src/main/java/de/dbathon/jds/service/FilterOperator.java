@@ -159,10 +159,9 @@ public abstract class FilterOperator {
 
     @Override
     protected void applyNonSpecialKey(final QueryBuilder queryBuilder, final String key, final Object rightHandSide) {
-      if (key.indexOf('[') >= 0 || rightHandSide == null) {
+      if (key.indexOf('[') >= 0) {
         /**
-         * array paths or null right hand side are currently not supported here, just use the
-         * default behavior.
+         * Array paths are currently not supported here, just use the default behavior.
          */
         super.applyNonSpecialKey(queryBuilder, key, rightHandSide);
       }
