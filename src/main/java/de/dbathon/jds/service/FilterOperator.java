@@ -7,13 +7,17 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import de.dbathon.jds.util.JsonMap;
 import de.dbathon.jds.util.JsonStringNumber;
+import de.dbathon.jds.util.JsonUtil;
 
 public abstract class FilterOperator {
 
@@ -31,7 +35,9 @@ public abstract class FilterOperator {
 
     filterOperators.put("is", new IsTypeOperator());
 
-    // TODO: prefix (mainly for id), like, ilike, in
+    filterOperators.put("in", new InOperator());
+
+    // TODO: prefix (mainly for id), like, ilike
 
     FILTER_OPERATORS = Collections.unmodifiableMap(filterOperators);
   }
@@ -233,6 +239,53 @@ public abstract class FilterOperator {
       }
       else {
         queryBuilder.add("coalesce(jsonb_typeof(" + getJsonPathExpression(key) + "), 'undefined') = ?", rightHandSide);
+      }
+    }
+
+  }
+
+  private static class InOperator extends FilterOperator {
+
+    private boolean handleEmpty(final QueryBuilder queryBuilder, final List<?> arguments) {
+      if (arguments.isEmpty()) {
+        // if there are no arguments, then there is no match
+        queryBuilder.add("false");
+        return true;
+      }
+      return false;
+    }
+
+    protected String generateParameters(final String singleParameter, final int size) {
+      return IntStream.range(0, size).mapToObj(i -> singleParameter).collect(Collectors.joining(", "));
+    }
+
+    @Override
+    public void apply(final QueryBuilder queryBuilder, final String key, final Object rightHandSide) {
+      if (!(rightHandSide instanceof List<?>)) {
+        throw new ApiException("invalid right hand side for \"in\" operator: " + toJsonString(rightHandSide));
+      }
+      final List<?> arguments = (List<?>) rightHandSide;
+      if (arguments.size() > 1000) {
+        throw new ApiException("too many arguments for \"in\" operator: " + arguments.size());
+      }
+
+      if (isSpecialKey(key)) {
+        final List<?> stringArguments =
+            arguments.stream().filter(argument -> argument instanceof String).collect(Collectors.toList());
+
+        if (handleEmpty(queryBuilder, stringArguments)) {
+          return;
+        }
+
+        queryBuilder.add(key + " in (" + generateParameters("?", stringArguments.size()) + ")", stringArguments);
+      }
+      else {
+        if (handleEmpty(queryBuilder, arguments)) {
+          return;
+        }
+
+        queryBuilder.add(getJsonPathExpression(key) + " in (" + generateParameters("?::jsonb", arguments.size()) + ")",
+            arguments.stream().map(JsonUtil::toJsonString).collect(Collectors.toList()));
       }
     }
 
