@@ -227,7 +227,13 @@ public abstract class FilterOperator {
         throw new ApiException("unexpected type for \"is\" operator: " + toJsonString(rightHandSide));
       }
 
-      queryBuilder.add("coalesce(jsonb_typeof(" + getJsonPathExpression(key) + "), 'undefined') = ?", rightHandSide);
+      if (isSpecialKey(key)) {
+        // both special keys are always string
+        queryBuilder.add(Boolean.valueOf("string".equals(rightHandSide)).toString());
+      }
+      else {
+        queryBuilder.add("coalesce(jsonb_typeof(" + getJsonPathExpression(key) + "), 'undefined') = ?", rightHandSide);
+      }
     }
 
   }
