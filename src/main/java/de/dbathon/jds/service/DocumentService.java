@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -83,7 +84,7 @@ public class DocumentService {
 
   public static void validateId(final String documentId) {
     if (!ID_PATTERN.matcher(documentId).matches()) {
-      throw new ApiException("invalid document id: " + documentId);
+      throw new ApiException("invalid document id: " + documentId).withDocumentId(documentId);
     }
   }
 
@@ -253,80 +254,99 @@ public class DocumentService {
     }
   }
 
-  public String createDocument(final String databaseName, final String documentId, final JsonMap json) {
-    validateId(documentId);
-    final DatabaseInfo databaseInfo = databaseCache.getDatabaseInfoAndLock(databaseName);
-    final String dataJson = toJsonString(validateAndRemoveSpecialProperties(json, documentId, null));
-    final String version = databaseCache.getIncrementedVersion(databaseInfo);
+  private <T> T withApiExceptionDocumentIdHandling(final String documentId, final Supplier<T> supplier) {
     try {
-      final int insertCount = databaseConnection.executeUpdate(
-          "insert into jds_document (database_id, id, version, data) values (?, ?, ?, ?::jsonb)", databaseInfo.id,
-          documentId, version, dataJson);
-      if (insertCount != 1) {
-        throw new IllegalStateException("unexpected insertCount: " + insertCount);
-      }
+      return supplier.get();
     }
-    catch (final RuntimeSqlException e) {
-      if (e.isIntegrityContraintViolation()) {
-        // document already exists
-        throw new ApiException("document already exists", e, Status.CONFLICT);
+    catch (final ApiException e) {
+      if (e.getDocumentId() == null) {
+        e.withDocumentId(documentId);
       }
       throw e;
     }
-    updateReferences(databaseInfo, documentId, json, true);
-    return version;
+  }
+
+  public String createDocument(final String databaseName, final String documentId, final JsonMap json) {
+    return withApiExceptionDocumentIdHandling(documentId, () -> {
+      validateId(documentId);
+      final DatabaseInfo databaseInfo = databaseCache.getDatabaseInfoAndLock(databaseName);
+      final String dataJson = toJsonString(validateAndRemoveSpecialProperties(json, documentId, null));
+      final String version = databaseCache.getIncrementedVersion(databaseInfo);
+      try {
+        final int insertCount = databaseConnection.executeUpdate(
+            "insert into jds_document (database_id, id, version, data) values (?, ?, ?, ?::jsonb)", databaseInfo.id,
+            documentId, version, dataJson);
+        if (insertCount != 1) {
+          throw new IllegalStateException("unexpected insertCount: " + insertCount);
+        }
+      }
+      catch (final RuntimeSqlException e) {
+        if (e.isIntegrityContraintViolation()) {
+          // document already exists
+          throw new ApiException("document already exists", e, Status.CONFLICT);
+        }
+        throw e;
+      }
+      updateReferences(databaseInfo, documentId, json, true);
+      return version;
+    });
   }
 
   public String updateDocument(final String databaseName, final String documentId, final JsonMap json) {
-    validateId(documentId);
-    final DocumentInfo info = getDocumentInfoAndLock(databaseName, documentId);
-    final JsonMap processedJson = validateAndRemoveSpecialProperties(json, documentId, info.version);
+    return withApiExceptionDocumentIdHandling(documentId, () -> {
+      validateId(documentId);
+      final DocumentInfo info = getDocumentInfoAndLock(databaseName, documentId);
+      final JsonMap processedJson = validateAndRemoveSpecialProperties(json, documentId, info.version);
 
-    // load the existing document and compare to see if the document is unchanged
-    final JsonMap existingJson = (JsonMap) readJsonString(databaseConnection.queryNoOrOneResult(
-        "select data from jds_document where database_id = ? and id = ? and version = ?", String.class,
-        info.databaseInfo.id, documentId, info.version));
-    if (existingJson.equals(processedJson)) {
-      // no changes, don't update
-      return info.version;
-    }
+      // load the existing document and compare to see if the document is unchanged
+      final JsonMap existingJson = (JsonMap) readJsonString(databaseConnection.queryNoOrOneResult(
+          "select data from jds_document where database_id = ? and id = ? and version = ?", String.class,
+          info.databaseInfo.id, documentId, info.version));
+      if (existingJson.equals(processedJson)) {
+        // no changes, don't update
+        return info.version;
+      }
 
-    final String dataJson = toJsonString(processedJson);
-    final String newVersion = databaseCache.getIncrementedVersion(info.databaseInfo);
+      final String dataJson = toJsonString(processedJson);
+      final String newVersion = databaseCache.getIncrementedVersion(info.databaseInfo);
 
-    final int updateCount = databaseConnection.executeUpdate(
-        "update jds_document set version = ?, data = ?::jsonb where database_id = ? and id = ? and version = ?",
-        newVersion, dataJson, info.databaseInfo.id, documentId, info.version);
-    if (updateCount != 1) {
-      // the update must work, since we locked above
-      throw new IllegalStateException("update failed unexpectedly: " + updateCount);
-    }
-    updateReferences(info.databaseInfo, documentId, json, false);
-    return newVersion;
+      final int updateCount = databaseConnection.executeUpdate(
+          "update jds_document set version = ?, data = ?::jsonb where database_id = ? and id = ? and version = ?",
+          newVersion, dataJson, info.databaseInfo.id, documentId, info.version);
+      if (updateCount != 1) {
+        // the update must work, since we locked above
+        throw new IllegalStateException("update failed unexpectedly: " + updateCount);
+      }
+      updateReferences(info.databaseInfo, documentId, json, false);
+      return newVersion;
+    });
   }
 
   public void deleteDocument(final String databaseName, final String documentId, final String version) {
-    final DocumentInfo info = getDocumentInfoAndLockAndCheckVersion(databaseName, documentId, version);
-    try {
-      // first delete potentially existing outgoing references
-      databaseConnection.executeUpdate("delete from jds_reference where database_id = ? and from_document_id = ?",
-          info.databaseInfo.id, info.id);
+    withApiExceptionDocumentIdHandling(documentId, () -> {
+      final DocumentInfo info = getDocumentInfoAndLockAndCheckVersion(databaseName, documentId, version);
+      try {
+        // first delete potentially existing outgoing references
+        databaseConnection.executeUpdate("delete from jds_reference where database_id = ? and from_document_id = ?",
+            info.databaseInfo.id, info.id);
 
-      // then delete the document
-      final int updateCount = databaseConnection
-          .executeUpdate("delete from jds_document where database_id = ? and id = ?", info.databaseInfo.id, info.id);
-      if (updateCount != 1) {
-        // the delete must work, since we locked above
-        throw new IllegalStateException("delete failed unexpectedly: " + updateCount);
+        // then delete the document
+        final int updateCount = databaseConnection
+            .executeUpdate("delete from jds_document where database_id = ? and id = ?", info.databaseInfo.id, info.id);
+        if (updateCount != 1) {
+          // the delete must work, since we locked above
+          throw new IllegalStateException("delete failed unexpectedly: " + updateCount);
+        }
+        return null;
       }
-    }
-    catch (final RuntimeSqlException e) {
-      if (e.isIntegrityContraintViolation()) {
-        // database name already exists
-        throw new ApiException("document is referenced", e, Status.CONFLICT);
+      catch (final RuntimeSqlException e) {
+        if (e.isIntegrityContraintViolation()) {
+          // database name already exists
+          throw new ApiException("document is referenced", e, Status.CONFLICT);
+        }
+        throw e;
       }
-      throw e;
-    }
+    });
   }
 
   private void applyFilterOperator(final QueryBuilder queryBuilder, final String key, final String operatorName,

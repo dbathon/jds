@@ -48,9 +48,8 @@ public class AnyExceptionMapper implements ExceptionMapper<Throwable> {
         return ((WebApplicationException) e).getResponse();
       }
       else if (e instanceof ApiException) {
-        final ApiException requestError = (ApiException) e;
         // no logging
-        return RestUtil.buildErrorResponse(requestError.getStatus(), requestError.getMessage());
+        return RestUtil.buildErrorResponse((ApiException) e);
       }
       else if (e instanceof JsonParsingException) {
         response = RestUtil.buildErrorResponse(Status.BAD_REQUEST, "invalid json");

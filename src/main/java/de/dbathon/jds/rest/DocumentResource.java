@@ -87,7 +87,7 @@ public class DocumentResource {
   public JsonMap delete(@PathParam("databaseName") final String databaseName,
       @PathParam("documentId") final String documentId, @QueryParam("version") final String version) {
     if (version == null) {
-      throw new ApiException("version parameter is missing");
+      throw new ApiException("version parameter is missing").withDocumentId(documentId);
     }
     documentService.deleteDocument(databaseName, documentId, version);
     return new JsonMap();

@@ -13,6 +13,7 @@ import de.dbathon.jds.rest.AnyExceptionMapper;
 public class ApiException extends RuntimeException {
 
   private final Status status;
+  private String documentId;
 
   public ApiException(final String message, final Status status) {
     super(message);
@@ -34,6 +35,15 @@ public class ApiException extends RuntimeException {
 
   public Status getStatus() {
     return status;
+  }
+
+  public ApiException withDocumentId(final String documentId) {
+    this.documentId = documentId;
+    return this;
+  }
+
+  public String getDocumentId() {
+    return documentId;
   }
 
 }
