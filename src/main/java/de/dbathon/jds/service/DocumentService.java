@@ -259,7 +259,6 @@ public class DocumentService {
     final String dataJson = toJsonString(validateAndRemoveSpecialProperties(json, documentId, null));
     final String version = databaseCache.getIncrementedVersion(databaseInfo);
     try {
-      // random id between 1 and Integer.MAX_VALUE
       final int insertCount = databaseConnection.executeUpdate(
           "insert into jds_document (database_id, id, version, data) values (?, ?, ?, ?::jsonb)", databaseInfo.id,
           documentId, version, dataJson);
@@ -269,7 +268,7 @@ public class DocumentService {
     }
     catch (final RuntimeSqlException e) {
       if (e.isIntegrityContraintViolation()) {
-        // database name already exists
+        // document already exists
         throw new ApiException("document already exists", e, Status.CONFLICT);
       }
       throw e;
