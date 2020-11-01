@@ -2,6 +2,7 @@ package de.dbathon.jds.service;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -20,7 +21,7 @@ public class QueryBuilder {
     return "not".equals(operator) ? "and" : operator;
   }
 
-  public void add(final String expression, final Object... parameters) {
+  public void add(final String expression, final Collection<?> parameters) {
     if (addCount > 0) {
       stringBuilder.append(" ");
       if (currentOperator != null) {
@@ -36,14 +37,18 @@ public class QueryBuilder {
       stringBuilder.append(")");
     }
 
-    if (parameters != null && parameters.length > 0) {
-      this.parameters.addAll(Arrays.asList(parameters));
+    if (!parameters.isEmpty()) {
+      this.parameters.addAll(parameters);
     }
     ++addCount;
   }
 
+  public void add(final String expression, final Object... parameters) {
+    add(expression, parameters != null && parameters.length > 0 ? Arrays.asList(parameters) : Collections.emptyList());
+  }
+
   public void add(final String expression) {
-    add(expression, (Object[]) null);
+    add(expression, Collections.emptyList());
   }
 
   private void withOperator(final String operator, final Runnable runnable) {
