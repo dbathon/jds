@@ -2,14 +2,21 @@ package de.dbathon.jds.rest;
 
 import static de.dbathon.jds.util.JsonUtil.readJsonString;
 import static de.dbathon.jds.util.JsonUtil.readObjectFromJsonBytes;
+import static de.dbathon.jds.util.JsonUtil.toJsonString;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
+import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
@@ -33,6 +40,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import de.dbathon.jds.service.ApiException;
 import de.dbathon.jds.service.DocumentService;
+import de.dbathon.jds.service.DocumentService.OperationType;
 import de.dbathon.jds.util.JsonMap;
 
 @Path("{databaseName}")
@@ -66,7 +74,7 @@ public class DocumentResource {
     final JsonMap json = readObjectFromJsonBytes(jsonBytes);
     final String newVersion;
     final ResponseBuilder response;
-    if (!json.containsKey("version")) {
+    if (!json.containsKey(DocumentService.VERSION_PROPERTY)) {
       // create
       newVersion = documentService.createDocument(databaseName, documentId, json);
       response = Response.created(uriInfo.getAbsolutePath());
@@ -94,6 +102,86 @@ public class DocumentResource {
   }
 
   // TODO PATCH
+
+  private static class IdAndVersionAndDocument {
+    final String id;
+    final String version;
+    final JsonMap document;
+
+    public IdAndVersionAndDocument(final String id, final String version, final JsonMap document) {
+      this.id = id;
+      this.version = version;
+      this.document = document;
+    }
+  }
+
+  private Stream<IdAndVersionAndDocument> getListElements(final JsonMap json, final String property) {
+    final Object value = json.get(property);
+    if (value == null) {
+      return Stream.empty();
+    }
+    if (!(value instanceof List<?>)) {
+      throw new ApiException(property + " is not an array");
+    }
+    return ((List<?>) value).stream().map(element -> {
+      if (!(element instanceof JsonMap)) {
+        throw new ApiException("all elements of " + property + " need to be objects");
+      }
+      final JsonMap document = (JsonMap) element;
+
+      final Object id = document.get(DocumentService.ID_PROPERTY);
+      if (!(id instanceof String)) {
+        throw new ApiException("invalid " + DocumentService.ID_PROPERTY + ": " + toJsonString(id));
+      }
+
+      final Object version = document.get(DocumentService.VERSION_PROPERTY);
+      if (!(version == null || version instanceof String)) {
+        throw new ApiException("invalid " + DocumentService.VERSION_PROPERTY + ": " + toJsonString(version));
+      }
+
+      return new IdAndVersionAndDocument((String) id, (String) version, document);
+    });
+  }
+
+  @POST
+  @Path("_multi")
+  @Operation(summary = "create, update or delete multiple documents in one request")
+  @APIResponse(responseCode = "200", content = @Content(schema = @Schema(ref = "jsonObject")))
+  public JsonMap multi(@PathParam("databaseName") final String databaseName,
+      @RequestBody(content = @Content(schema = @Schema(ref = "jsonObject"))) final byte[] jsonBytes) {
+    final JsonMap json = readObjectFromJsonBytes(jsonBytes);
+
+    final List<DocumentService.Operation> operations = new ArrayList<>();
+    // allow each id only once (there is no reason to allow multiple operations for one document)
+    final Set<String> seenIds = new HashSet<>();
+    getListElements(json, "put").forEach(entry -> {
+      if (!seenIds.add(entry.id)) {
+        throw new ApiException("only one change per document allowed");
+      }
+
+      operations.add(new DocumentService.Operation(entry.version == null ? OperationType.CREATE : OperationType.UPDATE,
+          entry.id, entry.document, null));
+    });
+
+    getListElements(json, "delete").forEach(entry -> {
+      if (!seenIds.add(entry.id)) {
+        throw new ApiException("only one operation per document allowed");
+      }
+      if (entry.version == null) {
+        throw new ApiException(DocumentService.VERSION_PROPERTY + " is required for delete");
+      }
+
+      operations.add(new DocumentService.Operation(OperationType.DELETE, entry.id, null, entry.version));
+    });
+
+    if (operations.isEmpty()) {
+      throw new ApiException("no put or delete operations specified");
+    }
+
+    final Map<String, String> newVersions = documentService.performOperations(databaseName, operations);
+
+    return new JsonMap().add("newDocumentVersions", newVersions);
+  }
 
   private Integer tryParseInteger(final String string, final String name) {
     if (string == null || string.isEmpty()) {

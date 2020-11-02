@@ -9,9 +9,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -38,6 +40,35 @@ public class DocumentService {
   public static final String VERSION_PROPERTY = "version";
   public static final List<String> SPECIAL_STRING_PROPERTIES =
       Collections.unmodifiableList(Arrays.asList(ID_PROPERTY, VERSION_PROPERTY));
+
+  public enum OperationType {
+    CREATE,
+    UPDATE,
+    DELETE;
+  }
+
+  public static class Operation {
+    public final OperationType type;
+    public final String documentId;
+    public final JsonMap json;
+    public final String versionForDelete;
+
+    public Operation(final OperationType type, final String documentId, final JsonMap json,
+        final String versionForDelete) {
+      this.type = Objects.requireNonNull(type);
+      this.documentId = Objects.requireNonNull(documentId);
+
+      if (type != OperationType.DELETE && json == null) {
+        throw new IllegalArgumentException("json is required for " + type);
+      }
+      this.json = json;
+
+      if (type == OperationType.DELETE && versionForDelete == null) {
+        throw new IllegalArgumentException("versionForDelete is required for " + type);
+      }
+      this.versionForDelete = versionForDelete;
+    }
+  }
 
   private static final Class<?>[] STRING_STRING_TYPES = new Class<?>[] { String.class, String.class };
   private static final Class<?>[] STRING_STRING_STRING_TYPES =
@@ -347,6 +378,31 @@ public class DocumentService {
         throw e;
       }
     });
+  }
+
+  public Map<String, String> performOperations(final String databaseName, final Iterable<Operation> operations) {
+    final Map<String, String> result = new LinkedHashMap<>();
+    for (final Operation operation : operations) {
+      switch (operation.type) {
+      case CREATE: {
+        final String version = createDocument(databaseName, operation.documentId, operation.json);
+        result.put(operation.documentId, version);
+        break;
+      }
+      case UPDATE: {
+        final String version = updateDocument(databaseName, operation.documentId, operation.json);
+        result.put(operation.documentId, version);
+        break;
+      }
+      case DELETE:
+        deleteDocument(databaseName, operation.documentId, operation.versionForDelete);
+        break;
+      default:
+        throw new IllegalStateException("unexpected type: " + operation.type);
+      }
+    }
+
+    return result;
   }
 
   private void applyFilterOperator(final QueryBuilder queryBuilder, final String key, final String operatorName,
