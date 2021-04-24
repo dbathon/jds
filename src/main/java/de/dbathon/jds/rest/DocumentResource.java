@@ -94,9 +94,6 @@ public class DocumentResource {
   @APIResponse(responseCode = "200", content = @Content(schema = @Schema(ref = "jsonObject")))
   public JsonMap delete(@PathParam("databaseName") final String databaseName,
       @PathParam("documentId") final String documentId, @QueryParam("version") final String version) {
-    if (version == null) {
-      throw new ApiException("version parameter is missing").withDocumentId(documentId);
-    }
     documentService.deleteDocument(databaseName, documentId, version);
     return new JsonMap();
   }
@@ -166,9 +163,6 @@ public class DocumentResource {
     getListElements(json, "delete").forEach(entry -> {
       if (!seenIds.add(entry.id)) {
         throw new ApiException("only one operation per document allowed");
-      }
-      if (entry.version == null) {
-        throw new ApiException(DocumentService.VERSION_PROPERTY + " is required for delete");
       }
 
       operations.add(new DocumentService.Operation(OperationType.DELETE, entry.id, null, entry.version));

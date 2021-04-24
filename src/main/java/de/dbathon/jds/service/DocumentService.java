@@ -63,9 +63,6 @@ public class DocumentService {
       }
       this.json = json;
 
-      if (type == OperationType.DELETE && versionForDelete == null) {
-        throw new IllegalArgumentException("versionForDelete is required for " + type);
-      }
       this.versionForDelete = versionForDelete;
     }
   }
@@ -145,7 +142,7 @@ public class DocumentService {
   private DocumentInfo getDocumentInfoAndLockAndCheckVersion(final String databaseName, final String documentId,
       final String version) {
     final DocumentInfo info = getDocumentInfoAndLock(databaseName, documentId);
-    if (!version.equals(info.version)) {
+    if (version != null && !version.equals(info.version)) {
       throw versionDoesNotMatchException();
     }
     return info;
