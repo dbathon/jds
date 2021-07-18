@@ -20,17 +20,5 @@ create table jds_document (
 
 create index idx_jds_document_data on jds_document using gin (data jsonb_path_ops);
 
-create table jds_reference (
-  database_id int4 not null,
-  from_document_id varchar(200) collate "C" not null,
-  to_document_id varchar(200) collate "C" not null,
-  primary key (database_id, from_document_id, to_document_id),
-  foreign key (database_id) references jds_database (id),
-  foreign key (database_id, from_document_id) references jds_document (database_id, id),
-  foreign key (database_id, to_document_id) references jds_document (database_id, id)
-);
-
-create index idx_jds_reference_to_document on jds_reference (database_id, to_document_id, from_document_id);
-
 
 -- TODO: jds_attachment, jds_user?
